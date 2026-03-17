@@ -1,4 +1,4 @@
-# 🛒 Website Bán Giày Online – Django
+# 🛒 ChatBot Ai Hỗ Trợ Tư Vấn & Bán Hàng
 
 ## 📌 Giới thiệu
 Đây là hệ thống **Website bán giày trực tuyến** được xây dựng bằng **Django**.  
