@@ -21,16 +21,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 GEMINI_API_KEY="AIzaSyDiUXHpbdwbbGq3OfyE72G7YKQdsPCmJeg"
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-=)@-y((xk@o6zo%5yq#0(5kzw!7hk%ijk8l5uu(6c83o^%_s5p'
+
+STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
 ALLOWED_HOSTS = []
 
-STRIPE_PUBLIC_KEY = "pk_test_51TAaXh2c4KdnYowuTgccyZwX9KAneZbcdWDuZofkt0MQ2UhHZd3o2VXyhUsP5WoGeF1EQLYdd6oREdbhUkixJMeh00BpQlQioo"
-STRIPE_SECRET_KEY = "sk_test_51TAaXh2c4KdnYowutw9pQjBe7mUCVSyyREJ3OqPS3ZRkjxGtDEGUHPjjxls0BRyu09iHhNNgNH04Fi25unY6A9lr00YO6kcpYJ"
-
+STRIPE_PUBLIC_KEY = os.environ.get("STRIPE_PUBLIC_KEY")
+STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY")
 # Application definition
 
 INSTALLED_APPS = [
