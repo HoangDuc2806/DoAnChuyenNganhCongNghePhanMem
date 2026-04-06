@@ -530,3 +530,12 @@ def delete_product(request, pk):
     product.delete()
 
     return Response({"message": "Product deleted successfully"})
+
+@api_view(['GET'])
+def get_product(request, pk):
+
+    product = get_object_or_404(Product, id=pk)
+
+    serializer = ProductSerializer(product)
+
+    return Response(serializer.data)
