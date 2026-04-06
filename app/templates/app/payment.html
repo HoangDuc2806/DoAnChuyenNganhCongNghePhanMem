@@ -1,0 +1,83 @@
+{% extends 'app/base.html' %}
+
+{% block content_checkout %}
+
+<div class="container mt-5 mb-5">
+    <div class="row">
+
+        <div class="col-lg-6">
+            <div class="box-element p-4">
+
+                <h3>Thanh toán đơn hàng</h3>
+                <hr>
+
+                <p>Số sản phẩm: <strong>{{ order.get_cart_items }}</strong></p>
+<p>Tổng tiền: <strong id="total-price">{{ order.get_cart_total }} VND</strong></p>
+
+<hr>
+
+<h5>Mã giảm giá</h5>
+
+<input type="text" id="coupon-code" class="form-control mb-2" placeholder="Nhập mã giảm giá">
+
+<button onclick="applyCoupon()" class="btn btn-warning w-100">
+    Áp dụng mã
+</button>
+
+<p id="discount-text" class="mt-2 text-success"></p>
+
+<br>
+
+<a href="{% url 'create_checkout_session' %}" class="btn btn-success w-100">
+💳 Thanh toán bằng Stripe
+</a>
+
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="box-element p-4">
+
+                <h4>Thông tin đơn hàng</h4>
+                <hr>
+
+                {% for item in order.orderitem_set.all %}
+
+                <div class="row mb-3 align-items-center">
+                    <div class="col-3">
+                        <img src="{{ item.product.ImageURL }}" width="70">
+                    </div>
+
+                    <div class="col-6">
+                        {{ item.product.name }}
+                    </div>
+
+                    <div class="col-3">
+                        x{{ item.quantity }}
+                    </div>
+                </div>
+
+                {% endfor %}
+
+            </div>
+        </div>
+
+    </div>
+</div>
+<script>
+function applyCoupon(){
+    let code = document.getElementById("coupon-code").value;
+    let total = parseFloat("{{ order.get_cart_total }}");
+
+    if(code === "GIAM10"){
+        let newTotal = total * 0.9;
+
+        document.getElementById("discount-text").innerText = "✅ Giảm 10%";
+        document.getElementById("total-price").innerText = newTotal.toFixed(0) + " VND";
+
+    } else {
+        document.getElementById("discount-text").innerText = "❌ Mã không hợp lệ";
+    }
+}
+</script>
+{% endblock %}
