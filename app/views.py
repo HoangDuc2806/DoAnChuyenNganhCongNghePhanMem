@@ -7,6 +7,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from app.models import Product
 from django.conf import settings
+# handle login by dat
 def detail(request):
     if request.user.is_authenticated:
         customer = request.user
