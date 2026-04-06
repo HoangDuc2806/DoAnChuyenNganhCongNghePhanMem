@@ -119,7 +119,7 @@ def search(request):
         'user_not_login': user_not_login,
         'user_login': user_login
     })
-
+#dat
 # Hàm đăng ký người dùng mới
 def register(request):
     form = CreateUserForm()
@@ -153,7 +153,7 @@ def register(request):
                }
     return render(request, 'app/register.html', context)
 
-
+#dat
 # Hàm đăng nhập
 def loginPage(request):
     if request.user.is_authenticated:
@@ -500,6 +500,7 @@ from .models import Product
 from .serializers import ProductSerializer
 from django.shortcuts import get_object_or_404
 ##Endpoint Get - lay san pham
+#dat
 @api_view(['GET'])
 def get_products(request):
 
@@ -510,6 +511,7 @@ def get_products(request):
     return Response(serializer.data)
 
 ##Endpoint Post - Tạo sản phẩm
+#dat
 @api_view(['POST'])
 def create_product(request):
 
@@ -522,6 +524,7 @@ def create_product(request):
     return Response(serializer.errors, status=400)
 
 ##Endpoint Delete - Xóa sản phẩm
+#dat
 @api_view(['DELETE'])
 def delete_product(request, pk):
 
