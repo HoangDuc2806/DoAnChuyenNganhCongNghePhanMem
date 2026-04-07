@@ -107,6 +107,8 @@ Chatbot/
 ├── .gitignore
 └── README.md
 
+---
+
 🗄️ Cơ sở dữ liệu chính
 
 Hệ thống có các bảng dữ liệu chính như:
