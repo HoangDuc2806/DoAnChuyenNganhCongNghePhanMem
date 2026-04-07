@@ -79,8 +79,8 @@ def get_base_prompt():
     # Dữ liệu huấn luyện cơ bản
     TRAINING_DATA = f"""
 THÔNG TIN CÔNG TY:
-- Tên: Shop Giày 6 Anh Em
-- Website: https://6anhemstore.vn
+- Tên: Shop Giày DLN
+- Website: https://DLNstore.vn
 - Địa chỉ: 123 Trần Cao Vân , Đà Nẵng
 - Hotline: 0905 456 789
 - Email: support@6anhemstore.vn
