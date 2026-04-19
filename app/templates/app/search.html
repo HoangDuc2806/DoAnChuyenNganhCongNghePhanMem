@@ -1,33 +1,101 @@
 {% extends 'app/base.html' %}
 {% load static %}
-<head>
-    <meta charset="utf-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title></title>
-</head>
-<body>
-    {% block register %}
-    <h5> Result search for {{searched}} </h5><br/>
-   <div class="row" style="width:100%">
-  {%for product in keys %}
-  <div class="col-lg-4 col-md-6 mb-4">
-    <div class="card">
-      <img src="{{product.ImageURL}}" class="card-img-top" alt="Sửa rửa mặt" height="330px">
-      <div class="card-body d-flex flex-column">
-        <h6><strong>{{product.name}}</strong></h6>
-        <hr>
 
-        <div class="d-flex justify-content-between align-items-center">
-          <button data-product={{product.id}} data-action= "add" class="btn btn-outline-secondary add-btn update-cart">Thêm vào giỏ hàng</button>
-          <a class="btn btn-outline-success" href="{% url 'detail' %}?id={{product.id}}">Xem</a>
+{% block register %}
+<style>
+.page-wrap{max-width:1280px;margin:0 auto;padding:0 28px;}
+.products-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;}
+@media(max-width:1200px){.products-grid{grid-template-columns:repeat(3,1fr);}}
+@media(max-width:768px){.products-grid{grid-template-columns:repeat(2,1fr);}}
+@media(max-width:480px){.products-grid{grid-template-columns:1fr;}}
+.search-bar-big{display:flex;gap:0;max-width:600px;margin:0 auto 48px;}
+.search-bar-big input{flex:1;height:54px;padding:0 24px;border:2px solid var(--border);border-right:none;border-radius:14px 0 0 14px;font-size:1rem;font-family:'DM Sans',sans-serif;outline:none;transition:border-color .2s;}
+.search-bar-big input:focus{border-color:var(--gold);}
+.search-bar-big button{height:54px;padding:0 28px;background:var(--ink);color:white;border:none;border-radius:0 14px 14px 0;font-size:.85rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:background .2s;}
+.search-bar-big button:hover{background:var(--gold);}
+.highlight{background:rgba(201,168,76,.2);border-radius:4px;padding:1px 4px;}
+</style>
+
+<section style="padding:60px 0 80px;">
+    <div class="page-wrap">
+        <!-- Search hero -->
+        <div style="text-align:center;margin-bottom:48px;">
+            <p class="section-label">Kết quả tìm kiếm</p>
+            {% if searched %}
+            <h1 class="section-title" style="margin-bottom:8px;">
+                "{{ searched }}"
+            </h1>
+            <p style="color:var(--muted);font-size:.9rem;">{{ keys|length }} kết quả được tìm thấy</p>
+            {% else %}
+            <h1 class="section-title" style="margin-bottom:8px;">TÌM KIẾM</h1>
+            <p style="color:var(--muted);font-size:.9rem;">Nhập tên sản phẩm để tìm kiếm</p>
+            {% endif %}
         </div>
-        <h4 class="mt-3"><strong>{{product.price | floatformat:3}}VND</strong></h4>
-      </div>
+
+        <!-- Big search bar -->
+        <form method="POST" action="{% url 'search' %}">
+            {% csrf_token %}
+            <div class="search-bar-big">
+                <input type="text" name="searched" value="{{ searched }}" placeholder="Tìm kiếm giày Nike, Adidas, Puma...">
+                <button type="submit">Tìm kiếm</button>
+            </div>
+        </form>
+
+        <!-- Results -->
+        {% if searched %}
+        {% if keys %}
+        <div class="products-grid">
+            {% for product in keys %}
+            <div class="product-card">
+                <div class="img-wrap">
+                    <img src="{{ product.ImageURL }}" alt="{{ product.name }}">
+                    <span class="badge-new">New</span>
+                </div>
+                <div class="card-body">
+                    <div class="brand-tag">
+                        {% for cat in product.category.all %}{{ cat.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                    </div>
+                    <h5>{{ product.name }}</h5>
+                    <div class="price">{{ product.price|floatformat:0 }} ₫</div>
+                    <div class="card-actions">
+                        <button data-product="{{ product.id }}" data-action="add" class="btn-add-cart update-cart">🛒 Thêm vào giỏ</button>
+                        <a href="{% url 'detail' %}?id={{ product.id }}" class="btn-view">👁</a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div style="text-align:center;padding:80px 0;color:var(--muted);">
+            <div style="font-size:4rem;margin-bottom:16px;">🔍</div>
+            <h5 style="color:var(--ink);margin-bottom:8px;">Không tìm thấy kết quả</h5>
+            <p style="font-size:.88rem;">Không có sản phẩm nào khớp với "<strong style="color:var(--ink);">{{ searched }}</strong>"</p>
+            <p style="font-size:.84rem;margin-top:8px;">Thử tìm với từ khóa khác hoặc xem toàn bộ sản phẩm bên dưới.</p>
+            <a href="{% url 'category' %}" style="display:inline-block;margin-top:20px;padding:11px 28px;background:var(--ink);color:white;border-radius:10px;text-decoration:none;font-size:.84rem;font-weight:600;">Xem tất cả sản phẩm</a>
+        </div>
+        <!-- Suggest all products -->
+        <div style="margin-top:60px;">
+            <h3 class="section-title" style="text-align:center;margin-bottom:32px;">GỢI Ý CHO BẠN</h3>
+            <div class="products-grid">
+                {% for product in products|slice:":8" %}
+                <div class="product-card">
+                    <div class="img-wrap">
+                        <img src="{{ product.ImageURL }}" alt="{{ product.name }}">
+                    </div>
+                    <div class="card-body">
+                        <h5>{{ product.name }}</h5>
+                        <div class="price">{{ product.price|floatformat:0 }} ₫</div>
+                        <div class="card-actions">
+                            <button data-product="{{ product.id }}" data-action="add" class="btn-add-cart update-cart">🛒 Thêm</button>
+                            <a href="{% url 'detail' %}?id={{ product.id }}" class="btn-view">👁</a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        {% endif %}
     </div>
-  </div>
-  {% endfor %}
-</div>
-    {% endblock %}
-</body>
-</html>
+</section>
+{% endblock %}
