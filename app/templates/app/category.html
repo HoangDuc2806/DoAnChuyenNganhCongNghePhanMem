@@ -2,152 +2,65 @@
 {% load static %}
 
 {% block register %}
-<section class="py-5" style="background-color: #f9fcfd;">
-  <div class="container-fluid px-5">
+<style>
+.page-wrap{max-width:1280px;margin:0 auto;padding:0 28px;}
+.products-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;}
+@media(max-width:1200px){.products-grid{grid-template-columns:repeat(3,1fr);}}
+@media(max-width:768px){.products-grid{grid-template-columns:repeat(2,1fr);}}
+@media(max-width:480px){.products-grid{grid-template-columns:1fr;}}
+.cat-sidebar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:36px;}
+.cat-pill{padding:8px 20px;border-radius:40px;font-size:.78rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;border:1.5px solid var(--border);background:white;color:var(--muted);text-decoration:none;transition:all .2s;}
+.cat-pill:hover,.cat-pill.active{border-color:var(--ink);background:var(--ink);color:white;}
+</style>
 
-    <h2 class="text-center fw-bold mb-5" style="color: #4eaeb9;">
-      DANH MỤC: {{ category_name }}
-    </h2>
-
-    <div class="row g-4">
-      {% for product in products %}
-      <div class="col-lg-3 col-md-4 col-sm-6">
-
-        <div class="product-card">
-
-          <div class="position-relative">
-            <img src="{{ product.ImageURL }}" class="card-img-top" alt="{{ product.name }}">
-            <span class="badge bg-success position-absolute top-0 start-0 m-2 px-3 py-2 shadow">
-              New
-            </span>
-          </div>
-
-          <div class="card-body text-center">
-            <h5 class="fw-semibold">{{ product.name }}</h5>
-            <p class="price">{{ product.price|floatformat:0 }} VND</p>
-
-            <div class="d-flex justify-content-center gap-2 mt-3">
-              <button data-product="{{ product.id }}"
-                      data-action="add"
-                      class="btn add-btn update-cart">
-                🛒 Thêm vào giỏ
-              </button>
-
-              <a href="{% url 'detail' %}?id={{ product.id }}"
-                 class="btn view-btn">
-                👁 Xem
-              </a>
-            </div>
-
-          </div>
+<section style="padding:60px 0 80px;">
+    <div class="page-wrap">
+        <!-- Header -->
+        <div style="margin-bottom:36px;">
+            <p class="section-label">Sản phẩm</p>
+            <h1 class="section-title">
+                {% if active_category %}{{ active_category|upper }}{% else %}TẤT CẢ SẢN PHẨM{% endif %}
+            </h1>
+            <p style="margin-top:8px;color:var(--muted);font-size:.88rem;">{{ products|length }} sản phẩm</p>
         </div>
 
-      </div>
-      {% endfor %}
+        <!-- Category filter pills -->
+        <div class="cat-sidebar">
+            <a href="{% url 'category' %}" class="cat-pill {% if not active_category %}active{% endif %}">Tất cả</a>
+            {% for category in categories %}
+            <a href="{% url 'category' %}?category={{ category.slug }}" class="cat-pill {% if active_category == category.slug %}active{% endif %}">{{ category.name }}</a>
+            {% endfor %}
+        </div>
+
+        <!-- Products Grid -->
+        <div class="products-grid">
+            {% for product in products %}
+            <div class="product-card">
+                <div class="img-wrap">
+                    <img src="{{ product.ImageURL }}" alt="{{ product.name }}">
+                    <span class="badge-new">New</span>
+                </div>
+                <div class="card-body">
+                    <div class="brand-tag">
+                        {% for cat in product.category.all %}{{ cat.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                    </div>
+                    <h5>{{ product.name }}</h5>
+                    <div class="price">{{ product.price|floatformat:0 }} ₫</div>
+                    <div class="card-actions">
+                        <button data-product="{{ product.id }}" data-action="add" class="btn-add-cart update-cart">🛒 Thêm vào giỏ</button>
+                        <a href="{% url 'detail' %}?id={{ product.id }}" class="btn-view">👁</a>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div style="grid-column:1/-1;text-align:center;padding:80px 0;color:var(--muted);">
+                <div style="font-size:4rem;margin-bottom:16px;">👟</div>
+                <h5 style="margin-bottom:8px;">Không có sản phẩm</h5>
+                <p style="font-size:.88rem;">Danh mục này chưa có sản phẩm nào.</p>
+                <a href="{% url 'category' %}" style="display:inline-block;margin-top:16px;padding:10px 24px;background:var(--ink);color:white;border-radius:10px;text-decoration:none;font-size:.84rem;font-weight:600;">Xem tất cả</a>
+            </div>
+            {% endfor %}
+        </div>
     </div>
-  </div>
 </section>
-
-<style>
-{{ block.super }}
-/* COPY NGUYÊN CSS TỪ TRANG CHỦ */
-.product-card {
-  border: none;
-  border-radius: 20px;
-  overflow: hidden;
-  background: #fff;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-.product-card:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
-}
-
-.product-card img {
-  height: 280px;
-  object-fit: contain;
-  transition: transform 0.4s ease;
-}
-
-.product-card:hover img {
-  transform: scale(1.08);
-}
-
-/* Badge "New" */
-.product-card .badge {
-  font-size: 0.8rem;
-  border-radius: 12px;
-  padding: 5px 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  transition: transform 0.3s ease, background-color 0.3s ease;
-}
-
-.product-card:hover .badge {
-  transform: translateY(-2px);
-  background-color: #3b98a2;
-}
-
-/* Product Name & Price */
-.product-card h5 {
-  font-size: 1rem;
-  font-weight: 600;
-  margin-bottom: 5px;
-  color: #333;
-}
-
-.product-card .price {
-  color: #4eaeb9;
-  font-weight: 700;
-  font-size: 1.1rem;
-}
-
-/* Buttons */
-.add-btn, .view-btn {
-  border-radius: 30px;
-  font-weight: 600;
-  padding: 8px 18px;
-  transition: all 0.3s ease;
-  cursor: pointer;
-}
-
-.add-btn {
-  background-color: #4eaeb9;
-  color: #fff;
-  border: none;
-}
-
-.add-btn:hover {
-  background-color: #3b98a2;
-  transform: translateY(-2px) scale(1.05);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-}
-
-.view-btn {
-  background-color: #f5f5f5;
-  color: #4eaeb9;
-  border: 1px solid #4eaeb9;
-}
-
-.view-btn:hover {
-  background-color: #4eaeb9;
-  color: #fff;
-  transform: scale(1.05);
-}
-
-/* ===== RESPONSIVE ===== */
-@media(max-width: 992px) {
-  .product-card img { height: 250px; }
-}
-
-@media(max-width: 768px) {
-  .product-card img { height: 220px; }
-}
-
-@media(max-width: 576px) {
-  .product-card img { height: 180px; }
-  .add-btn, .view-btn { padding: 6px 14px; font-size: 0.9rem; }
-}
-</style>
 {% endblock %}
