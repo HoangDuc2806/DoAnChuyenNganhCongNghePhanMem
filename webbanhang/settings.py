@@ -19,7 +19,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
-GEMINI_API_KEY="AIzaSyCIgt5WhM5v5uGT43_kdjp1o9r2qMyTN4A"
+GEMINI_API_KEY="AIzaSyC3cwzRN5ovi67eSzqgxnjRkx4ufwjZomE"
 # SECURITY WARNING: keep the secret key used in production secret!
 
 
