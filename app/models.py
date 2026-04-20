@@ -133,7 +133,7 @@ from django.db import models
 from django.utils.timezone import now
 from django.contrib.auth.models import User
 class Invoice(models.Model):
-    order = models.OneToOneField('Order', on_delete=models.CASCADE)  # Liên kết với Order
+    order = models.OneToOneField('Order', on_delete=models.CASCADE)  # liet ket voi order
     invoice_date = models.DateTimeField(default=now)
     customer = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
