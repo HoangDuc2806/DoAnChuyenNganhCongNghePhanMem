@@ -1,5 +1,5 @@
 {% extends 'app/base.html' %}
-{% load static %}
+{% load static vnd_filters %}
 
 {% block content_checkout %}
 <style>
@@ -201,10 +201,10 @@
                             </div>
                             <div style="text-align: right; white-space: nowrap;">
                                 <div style="font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: .5px;">
-                                    {{ item.get_total|floatformat:0 }} ₫
+                                    {{ item.get_total|vnd }}
                                 </div>
                                 <div style="font-size: .72rem; color: var(--muted);">
-                                    {{ item.product.price|floatformat:0 }} ₫ × {{ item.quantity }}
+                                    {{ item.product.price|vnd }} × {{ item.quantity }}
                                 </div>
                             </div>
                         </div>
@@ -219,7 +219,7 @@
                         </div>
                         <div class="summary-row">
                             <span class="label">Tạm tính</span>
-                            <span class="value">{{ order.get_cart_total|floatformat:0 }} ₫</span>
+                            <span class="value">{{ order.get_cart_total|vnd }}</span>
                         </div>
                         <div class="summary-row">
                             <span class="label">Phí giao hàng</span>
@@ -230,7 +230,7 @@
                     <div class="summary-total">
                         <span style="font-weight: 600; font-size: .9rem;">Tổng thanh toán</span>
                         <span style="font-family: 'Bebas Neue', sans-serif; font-size: 1.7rem; letter-spacing: 1px; color: var(--ink);">
-                            {{ order.get_cart_total|floatformat:0 }} ₫
+                            {{ order.get_cart_total|vnd }}
                         </span>
                     </div>
 

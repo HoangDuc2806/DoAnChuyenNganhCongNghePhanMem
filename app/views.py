@@ -395,54 +395,66 @@ def updateItem(request):
 
 
 def checkout(request):
+    # Lấy thông tin user hiện tại nếu họ đã đăng nhập, ngược lại gán bằng None
     user = request.user if request.user.is_authenticated else None
+    
+    # Thiết lập biến chuỗi để ẩn/hiện các thành phần giao diện (HTML) dựa trên trạng thái đăng nhập
     user_not_login = "hidden" if user else "show"
     user_login = "show" if user else "hidden"
 
+    # Khởi tạo các biến mặc định cho giỏ hàng
     cartItems = 0
     order = None
     items = []
 
+    # Nếu người dùng đã đăng nhập
     if user:
         try:
-            # Tìm giỏ hàng hiện tại
+            # Tìm giỏ hàng hiện tại (đơn hàng chưa hoàn tất: complete=False)
             order = Order.objects.get(customer=user, complete=False)
+            # Lấy danh sách tất cả các sản phẩm có trong giỏ hàng này
             items = order.orderitem_set.all()
+            # Lấy tổng số lượng sản phẩm trong giỏ hàng (sử dụng property/phương thức của model)
             cartItems = order.get_cart_items
         except Order.DoesNotExist:
-            # Nếu không tìm thấy, báo lỗi và trả về giỏ hàng
+            # Nếu không tìm thấy giỏ hàng nào đang mở, thông báo lỗi và đẩy về trang giỏ hàng
             messages.error(request, "Giỏ hàng của bạn trống!")
             return redirect('cart') 
 
-    # Nếu người dùng gửi yêu cầu "Xác nhận đặt hàng"
+    # BẮT ĐẦU XỬ LÝ KHI NGƯỜI DÙNG BẤM "XÁC NHẬN ĐẶT HÀNG" (gửi dữ liệu lên qua phương thức POST)
     if request.method == 'POST':
         if order:
-            current_time = localtime(now())  # Lấy thời gian hiện tại
-            order.date_order = current_time  # Cập nhật ngày đặt hàng
-            order.complete = True            # Đóng đơn hàng (chuyển sang đã đặt)
-            order.save()
+            current_time = localtime(now())  # Lấy thời gian hiện tại của hệ thống
+            
+            # Cập nhật thông tin cho đơn hàng để "chốt đơn"
+            order.date_order = current_time  # Ghi nhận thời điểm đặt hàng
+            order.complete = True            # Đánh dấu đơn hàng này đã hoàn tất (đóng giỏ hàng)
+            order.save()                     # Lưu vào cơ sở dữ liệu
 
-            # ✅ Tự động tạo một Hóa đơn (Invoice) cho Đơn hàng này
+            # Tự động tạo một Hóa đơn (Invoice) để lưu trữ thông tin thanh toán cho đơn hàng này
             invoice = Invoice.objects.create(
                 order=order,
                 invoice_date=current_time,
                 customer=user,
-                total_amount=order.get_cart_total
+                total_amount=order.get_cart_total # Lấy tổng tiền của đơn hàng
             )
             
-            # Gửi thông báo thành công cho người dùng
+            # Hiển thị thông báo thành công cho người dùng kèm theo mã Hóa đơn
             messages.success(
                 request,
                 f"Đặt hàng thành công! Hóa đơn #{invoice.id} đã được tạo lúc {current_time.strftime('%H:%M:%S, %d-%m-%Y')}"
             )
-            # Chuyển tới trang xem chi tiết Hóa đơn mới tạo
+            # Điều hướng người dùng sang trang xem chi tiết Hóa đơn vừa tạo
             return redirect('invoice_detail', id=invoice.id) 
         else:
+            # Đề phòng trường hợp lỗi (gửi form khi không có giỏ hàng)
             messages.error(request, "Không có giỏ hàng để đặt!")
             return redirect('cart')
 
+    # Nếu là yêu cầu xem trang bình thường (GET request), chuẩn bị dữ liệu danh mục sản phẩm
     categories = Category.objects.filter(is_sub=False)
 
+    # Gom tất cả dữ liệu lại vào một dictionary (context) để gửi sang file HTML (app/checkout.html)
     context = {
         'categories': categories,
         'items': items,
@@ -451,6 +463,7 @@ def checkout(request):
         'user_not_login': user_not_login,
         'user_login': user_login,
     }
+    # Render (Hiển thị) giao diện ra màn hình
     return render(request, 'app/checkout.html', context)
 
 
@@ -496,42 +509,48 @@ def order_history(request):
 # ==============================================================================
 
 def create_checkout_session(request):
-    # Lấy giỏ hàng hiện tại đang mở
+    # Lấy giỏ hàng đang mở của người dùng hiện tại
     order = Order.objects.get(
         customer=request.user,
         complete=False
     )
 
-    # Tính tổng tiền, giới hạn không vượt mức tối đa hệ thống
+    # Lấy tổng tiền đơn hàng. Dùng hàm min() để đảm bảo tổng tiền không vượt quá mức tối đa (99999999) nhằm tránh lỗi hệ thống
     total_price = min(int(order.get_cart_total), 99999999)
 
-    # Giao tiếp với API Stripe để tạo phiên thanh toán mới
+    # Gọi API của Stripe để tạo một "Phiên thanh toán" (Checkout Session)
     session = stripe.checkout.Session.create(
-        payment_method_types=['card'], # Phương thức thẻ
+        payment_method_types=['card'], # Chỉ chấp nhận phương thức thanh toán bằng thẻ
         line_items=[{
             'price_data': {
-                'currency': 'vnd',     # Tiền tệ: VNĐ
+                'currency': 'vnd',     # Thiết lập tiền tệ là Việt Nam Đồng
                 'product_data': {
-                    'name': 'Thanh toán đơn hàng' # Tên sản phẩm hiển thị trên Stripe
+                    'name': 'Thanh toán đơn hàng' # Tên hiển thị trên màn hình thanh toán của Stripe
                 },
-                'unit_amount': total_price, # Số tiền
+                'unit_amount': total_price, # Số tiền cần thanh toán
             },
-            'quantity': 1,
+            'quantity': 1, # Số lượng (mặc định là 1 lần thanh toán cho cả tổng đơn)
         }],
-        mode='payment',
-        # Khai báo URL gọi lại nếu thanh toán thành công
+        mode='payment', # Chế độ thanh toán 1 lần (không phải trả góp/đăng ký)
+        
+        # Nếu khách hàng quẹt thẻ thành công, Stripe sẽ tự động chuyển hướng họ về URL này
         success_url='http://127.0.0.1:8000/success/',
-        # Khai báo URL gọi lại nếu hủy thanh toán
+        
+        # Nếu khách hàng đang ở trang Stripe nhưng bấm nút "Quay lại" hoặc hủy, họ sẽ về URL này
         cancel_url='http://127.0.0.1:8000/payment/',
     )
 
-    # Chuyển hướng trình duyệt đến trang chủ Stripe Checkout
+    # Chuyển hướng trình duyệt của khách hàng từ web của bạn sang trang thanh toán bảo mật của Stripe
     return redirect(session.url)
 
 
 def payment(request):
-    # Trang xem lại trước khi bấm chuyển qua nền tảng Stripe
+    # Đây là trang trung gian hiển thị tổng tiền trước khi người dùng bấm nút qua Stripe
+    
+    # Bắt buộc người dùng phải đăng nhập mới được vào trang này
     if request.user.is_authenticated:
+        # Tìm đơn hàng đang mở. Hàm get_or_create trả về 1 tuple (object, created_boolean)
+        # Nếu chưa có đơn hàng nào đang mở, nó sẽ tự tạo một cái mới.
         order, created = Order.objects.get_or_create(
             customer=request.user,
             complete=False
@@ -539,23 +558,27 @@ def payment(request):
         context = {
             'order': order
         }
+        # Hiển thị file payment.html
         return render(request, 'app/payment.html', context)
     else:
+        # Nếu chưa đăng nhập, đá về trang login
         return redirect('login')
 
 
 def success(request):
-    # URL gọi về sau khi thanh toán trên Stripe thành công
+    # Đây là trang đích được gọi tới sau khi khách hàng đã thanh toán thành công trên Stripe
+    
+    # Tìm lại đơn hàng đang mở của vị khách hàng đó
     order = Order.objects.get(customer=request.user, complete=False)
 
-    # Đánh dấu đơn hàng là đã hoàn tất và lưu mã giao dịch
-    order.complete = True
-    order.status = 'approved'
-    order.transaction_id = "stripe_payment" 
-    order.save()
+    # Xử lý cập nhật trạng thái "Chốt đơn"
+    order.complete = True            # Đóng đơn hàng (không cho thêm bớt sản phẩm nữa)
+    order.status = 'approved'        # Đổi trạng thái thành "Đã được phê duyệt"
+    order.transaction_id = "stripe_payment"  # Lưu tạm mã giao dịch báo hiệu đây là đơn trả qua Stripe
+    order.save()                     # Lưu cập nhật vào Database
 
+    # Hiển thị giao diện báo thành công cho khách hàng
     return render(request, 'app/success.html')
-
 
 # ==============================================================================
 # 6. REST API (Dành cho Mobile, React, Vue, tích hợp bên thứ ba,...)

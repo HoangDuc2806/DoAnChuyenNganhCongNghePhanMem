@@ -1,5 +1,5 @@
 {% extends 'app/base.html' %}
-{% load static %}
+{% load static vnd_filters %}
 
 {% block register %}
 <style>
@@ -7,15 +7,39 @@
 .detail-img-wrap{background:#f5f4f1;border-radius:20px;overflow:hidden;aspect-ratio:1;display:flex;align-items:center;justify-content:center;}
 .detail-img-wrap img{width:100%;height:100%;object-fit:contain;padding:28px;transition:transform .5s;}
 .detail-img-wrap:hover img{transform:scale(1.04);}
-.qty-control{display:flex;align-items:center;gap:0;border:1.5px solid var(--border);border-radius:12px;overflow:hidden;width:fit-content;}
-.qty-btn{width:40px;height:40px;background:none;border:none;font-size:1.2rem;cursor:pointer;transition:background .15s;display:flex;align-items:center;justify-content:center;}
-.qty-btn:hover{background:var(--paper);}
-.qty-num{width:44px;text-align:center;font-weight:600;font-size:.95rem;}
+
+/* ── Màu sắc ── */
+.color-btn{
+    width:32px;height:32px;border-radius:50%;border:2.5px solid transparent;
+    cursor:pointer;transition:all .2s;outline:none;flex-shrink:0;
+    position:relative;
+}
+.color-btn:hover{transform:scale(1.15);}
+.color-btn.selected{border-color:var(--ink);box-shadow:0 0 0 2px white,0 0 0 4px var(--ink);}
+.color-label{font-size:.82rem;color:var(--muted);margin-left:10px;transition:color .2s;}
+
+/* ── Size ── */
+.size-btn{
+    min-width:52px;height:44px;padding:0 10px;
+    border:1.5px solid var(--border);border-radius:10px;
+    background:white;font-size:.88rem;font-weight:600;
+    cursor:pointer;transition:all .2s;
+}
+.size-btn:hover:not(:disabled){border-color:var(--ink);}
+.size-btn.selected{background:var(--ink);color:white;border-color:var(--ink);}
+.size-btn:disabled{opacity:.35;cursor:not-allowed;text-decoration:line-through;}
+.size-btn.out-of-stock{opacity:.4;cursor:not-allowed;position:relative;}
+
+/* ── Stock badge ── */
+.stock-ok{color:#27ae60;font-size:.78rem;font-weight:600;}
+.stock-no{color:#e74c3c;font-size:.78rem;font-weight:600;}
+
+/* ── Related ── */
 .related-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;}
 @media(max-width:992px){.related-grid{grid-template-columns:repeat(3,1fr);}}
 @media(max-width:768px){.related-grid{grid-template-columns:repeat(2,1fr);}}
 @media(max-width:480px){.related-grid{grid-template-columns:1fr;}}
-.breadcrumb-link{font-size:.8rem;color:var(--muted);text-decoration:none;letter-spacing:.5px;}
+.breadcrumb-link{font-size:.8rem;color:var(--muted);text-decoration:none;}
 .breadcrumb-link:hover{color:var(--gold);}
 .breadcrumb-sep{font-size:.8rem;color:var(--border);margin:0 8px;}
 </style>
@@ -33,47 +57,98 @@
         </div>
 
         <div class="row g-5 align-items-start">
-            <!-- Image -->
+            <!-- Ảnh -->
             <div class="col-lg-6">
                 <div class="detail-img-wrap">
                     <img src="{{ product.ImageURL }}" alt="{{ product.name }}">
                 </div>
             </div>
 
-            <!-- Info -->
+            <!-- Thông tin -->
             <div class="col-lg-6">
-                <div class="brand-tag" style="font-size:.72rem;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:var(--gold);margin-bottom:10px;">
+                <div style="font-size:.72rem;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:var(--gold);margin-bottom:10px;">
                     {% for cat in product.category.all %}{{ cat.name }}{% if not forloop.last %} · {% endif %}{% endfor %}
                 </div>
                 <h1 style="font-family:'Bebas Neue',sans-serif;font-size:2.4rem;letter-spacing:2px;color:var(--ink);margin-bottom:16px;line-height:1.05;">{{ product.name }}</h1>
 
-                <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:24px;">
-                    <span style="font-family:'Bebas Neue',sans-serif;font-size:2rem;color:var(--ink);letter-spacing:1px;">{{ product.price|floatformat:0 }} ₫</span>
-                    <span style="font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">Giá bán lẻ</span>
+                <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:28px;">
+                    <span style="font-family:'Bebas Neue',sans-serif;font-size:2rem;color:var(--ink);letter-spacing:1px;">{{ product.price|vnd }}</span>
                 </div>
 
+                <!-- ── CHỌN MÀU ─────────────────────── -->
+                {% with variants=product.variants.all %}
+                {% if variants %}
+
+                {# Thu thập danh sách màu duy nhất #}
+                {% regroup variants by color as color_groups %}
+
+                <div style="margin-bottom:24px;">
+                    <div style="font-size:.75rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:12px;">
+                        Màu sắc: <span id="selectedColorLabel" style="color:var(--ink);font-weight:700;">—</span>
+                    </div>
+                    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+                        {% for group in color_groups %}
+                        {# Lấy color_hex từ variant đầu tiên của màu này #}
+                        {% with first=group.list.0 %}
+                        <button class="color-btn"
+                            data-color="{{ group.grouper }}"
+                            style="background-color:{{ first.color_hex }};"
+                            title="{{ group.grouper }}"
+                            onclick="selectColor(this, '{{ group.grouper }}')">
+                        </button>
+                        {% endwith %}
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- ── CHỌN SIZE ─────────────────────── -->
+                <div style="margin-bottom:28px;">
+                    <div style="font-size:.75rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:12px;">
+                        Size: <span id="selectedSizeLabel" style="color:var(--ink);font-weight:700;">—</span>
+                    </div>
+                    <div id="sizeGrid" style="display:flex;gap:8px;flex-wrap:wrap;">
+                        <p style="font-size:.84rem;color:var(--muted);">← Chọn màu trước</p>
+                    </div>
+                    <p id="stockInfo" style="margin-top:10px;min-height:20px;"></p>
+                </div>
+
+                {# Dữ liệu variants dạng JSON để JS xử lý #}
+                <script id="variantData" type="application/json">
+                [{% for v in variants %}
+                    {"id":{{ v.id }},"color":"{{ v.color }}","color_hex":"{{ v.color_hex }}","size":"{{ v.size }}","stock":{{ v.stock }}}{% if not forloop.last %},{% endif %}
+                {% endfor %}]
+                </script>
+
+                {% else %}
+                {# Sản phẩm chưa có variant — vẫn thêm giỏ bình thường #}
+                <p style="font-size:.84rem;color:var(--muted);margin-bottom:24px;">Liên hệ shop để biết màu và size còn hàng.</p>
+                {% endif %}
+                {% endwith %}
+
+                <!-- Mô tả -->
                 <div style="background:var(--paper);border-radius:14px;padding:18px;margin-bottom:28px;border:1px solid var(--border);">
                     <p style="font-size:.88rem;line-height:1.8;color:#444;margin:0;">
                         {{ product.detail|default:"Sản phẩm chính hãng, chất lượng cao cấp." }}
                     </p>
                 </div>
 
-                <!-- Add to cart -->
-                <button data-product="{{ product.id }}" data-action="add"
+                <!-- Nút thêm giỏ -->
+                <button id="addToCartBtn"
+                    data-product="{{ product.id }}" data-action="add"
                     class="update-cart"
                     style="width:100%;padding:16px;background:var(--ink);color:white;border:none;border-radius:14px;font-size:.88rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;transition:background .2s;margin-bottom:12px;">
                     🛒 Thêm vào giỏ hàng
                 </button>
                 <a href="{% url 'cart' %}"
-                    style="display:block;text-align:center;padding:15px;background:transparent;color:var(--ink);border:1.5px solid var(--border);border-radius:14px;font-size:.85rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;text-decoration:none;transition:all .2s;">
+                    style="display:block;text-align:center;padding:15px;background:transparent;color:var(--ink);border:1.5px solid var(--border);border-radius:14px;font-size:.85rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;text-decoration:none;">
                     Xem giỏ hàng →
                 </a>
 
                 <!-- Badges -->
                 <div style="display:flex;gap:10px;margin-top:24px;flex-wrap:wrap;">
-                    <div style="display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted);background:white;border:1px solid var(--border);padding:6px 12px;border-radius:8px;">🚚 Miễn phí giao hàng trên 2tr</div>
-                    <div style="display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted);background:white;border:1px solid var(--border);padding:6px 12px;border-radius:8px;">🔄 Đổi trả 7 ngày</div>
-                    <div style="display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted);background:white;border:1px solid var(--border);padding:6px 12px;border-radius:8px;">🛡 Bảo hành 12 tháng</div>
+                    <div style="font-size:.78rem;color:var(--muted);background:white;border:1px solid var(--border);padding:6px 12px;border-radius:8px;">🚚 Miễn phí giao hàng trên 2tr</div>
+                    <div style="font-size:.78rem;color:var(--muted);background:white;border:1px solid var(--border);padding:6px 12px;border-radius:8px;">🔄 Đổi trả 7 ngày</div>
+                    <div style="font-size:.78rem;color:var(--muted);background:white;border:1px solid var(--border);padding:6px 12px;border-radius:8px;">🛡 Bảo hành 12 tháng</div>
                 </div>
             </div>
         </div>
@@ -81,9 +156,9 @@
 </section>
 {% endfor %}
 
-<!-- Related products -->
+<!-- Related -->
 {% if related_products %}
-<section style="padding:0 0 80px;background:var(--paper);">
+<section style="padding:0 0 80px;">
     <div class="page-wrap">
         <div style="margin-bottom:28px;">
             <p class="section-label">Có thể bạn thích</p>
@@ -92,12 +167,10 @@
         <div class="related-grid">
             {% for item in related_products %}
             <div class="product-card">
-                <div class="img-wrap">
-                    <img src="{{ item.ImageURL }}" alt="{{ item.name }}">
-                </div>
+                <div class="img-wrap"><img src="{{ item.ImageURL }}" alt="{{ item.name }}"></div>
                 <div class="card-body">
                     <h5>{{ item.name }}</h5>
-                    <div class="price">{{ item.price|floatformat:0 }} ₫</div>
+                    <div class="price">{{ item.price|vnd }}</div>
                     <div class="card-actions">
                         <button data-product="{{ item.id }}" data-action="add" class="btn-add-cart update-cart">🛒 Thêm</button>
                         <a href="{% url 'detail' %}?id={{ item.id }}" class="btn-view">👁</a>
@@ -109,4 +182,57 @@
     </div>
 </section>
 {% endif %}
+
+<script>
+// ── Dữ liệu variants từ JSON block ──────────────────
+const variants = JSON.parse(
+    document.getElementById('variantData')?.textContent || '[]'
+);
+
+let selectedColor = null;
+let selectedSize  = null;
+
+// ── Chọn màu → render lại bảng size ─────────────────
+function selectColor(btn, colorName) {
+    // Bỏ chọn màu cũ
+    document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    selectedColor = colorName;
+    selectedSize  = null;
+
+    document.getElementById('selectedColorLabel').textContent = colorName;
+    document.getElementById('selectedSizeLabel').textContent  = '—';
+    document.getElementById('stockInfo').innerHTML = '';
+
+    // Lọc size của màu đang chọn
+    const sizesForColor = variants.filter(v => v.color === colorName);
+
+    const grid = document.getElementById('sizeGrid');
+    grid.innerHTML = sizesForColor.map(v => `
+        <button class="size-btn ${v.stock === 0 ? 'out-of-stock' : ''}"
+            ${v.stock === 0 ? 'disabled title="Hết hàng"' : ''}
+            onclick="selectSize(this, '${v.size}', ${v.stock})">
+            ${v.size}
+        </button>
+    `).join('');
+}
+
+// ── Chọn size → hiện tồn kho ─────────────────────────
+function selectSize(btn, sizeName, stock) {
+    document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    selectedSize = sizeName;
+
+    document.getElementById('selectedSizeLabel').textContent = sizeName;
+
+    const info = document.getElementById('stockInfo');
+    if (stock > 5) {
+        info.innerHTML = `<span class="stock-ok">✅ Còn hàng (${stock} đôi)</span>`;
+    } else if (stock > 0) {
+        info.innerHTML = `<span class="stock-ok">⚠️ Chỉ còn ${stock} đôi — mua nhanh!</span>`;
+    } else {
+        info.innerHTML = `<span class="stock-no">❌ Hết hàng</span>`;
+    }
+}
+</script>
 {% endblock %}

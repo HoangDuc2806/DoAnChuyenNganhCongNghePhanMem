@@ -1,136 +1,151 @@
+{% extends 'app/base.html' %}
+{% load static vnd_filters %}
+
+{% block register %}
 <style>
-/* Cải thiện giao diện bảng */
-.table-responsive {
-    background-color: #ffffff;
-    border-radius: 15px;
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
-    overflow-x: auto;
-    margin-top: 20px; /* Thêm khoảng cách trên */
-    text-align: center;
+.page-wrap { max-width: 1100px; margin: 0 auto; padding: 0 28px; }
+.order-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 22px 24px;
+    margin-bottom: 14px;
+    transition: box-shadow .2s;
+    display: grid;
+    grid-template-columns: 60px 1fr auto;
+    gap: 20px;
+    align-items: center;
 }
-
-.table {
-    width: 100%;
-    border-collapse: separate; /* Sử dụng separate để có khoảng cách giữa các ô */
-    border-spacing: 10px; /* Giãn cách giữa các ô trong bảng */
-}
-
-.table th, .table td {
-    padding: 15px; /* Tăng padding để các ô rộng hơn */
-    vertical-align: middle;
+.order-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,.07); }
+.order-num {
+    width: 52px; height: 52px;
+    background: var(--paper);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Bebas Neue', sans-serif;
     font-size: 1rem;
-    color: #333;
-    text-align: center;
-    border-radius: 5px; /* Bo góc cho các ô, nhưng không thêm viền */
-}
-
-/* Tiêu đề bảng */
-.bg-gradient-primary {
-    background: linear-gradient(135deg, #80def0, #80def0);
-    color: white;
-    font-weight: bold;
-}
-
-/* Tùy chỉnh tiêu đề chính */
-h1 {
-    color: #0b0c0c; /* Màu hồng cho tiêu đề */
-    font-size: 2.5rem; /* Cỡ chữ lớn */
-    font-weight: bold;
     letter-spacing: 1px;
-    text-align: center; /* Căn giữa tiêu đề */
-    margin-bottom: 30px;
+    color: var(--muted);
 }
-
-/* Đổi màu badge theo trạng thái */
-.badge {
-    font-size: 1rem;
-    padding: 0.5rem 1rem;
-    font-weight: 600;
-    border-radius: 50px;
+.status-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
 }
-
-/* Tùy chỉnh nút Xem */
-.btn-custom {
-    background-color: #80def0;
-    color: gray;
-    border-radius: 5px;
-    padding: 10px 20px;
-    font-size: 1rem;
-    font-weight: 600;
-    transition: all 0.3s ease;
-    border: 2px solid transparent;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-    text-decoration: none;
-    text-align: center;
+.pill-approved { background: #edfaf3; color: #27ae60; }
+.pill-pending  { background: #fff8ec; color: #e67e22; }
+.pill-canceled { background: #fdecea; color: #c0392b; }
+.order-total {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.3rem;
+    letter-spacing: 1px;
+    color: var(--ink);
+    white-space: nowrap;
+}
+.btn-invoice {
     display: inline-block;
-}
-
-.btn-custom:hover {
-    background-color: #80def0;
+    padding: 7px 16px;
+    background: var(--ink);
     color: white;
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    font-size: .76rem;
+    font-weight: 700;
+    letter-spacing: .5px;
+    text-decoration: none;
+    transition: background .2s;
+    white-space: nowrap;
 }
-
-.btn-custom:focus, .btn-custom:active {
-    outline: none;
-    box-shadow: 0 0 0 0.25rem #80def0;
-}
-
-
+.btn-invoice:hover { background: var(--gold); color: white; }
 </style>
-<div class="order-history-container container my-5">
-    <h1 class="text-center mb-4">Lịch Sử Đơn Hàng</h1>
-    {% if orders %}
-    <div class="table-responsive">
-        <table class="table table-striped table-hover align-middle">
-            <thead class="bg-gradient-primary text-white">
-                <tr>
-                    <th>Mã Đơn Hàng</th>
-                    <th>Ngày Đặt</th>
-                    <th>Tổng Tiền</th>
-                    <th>Trạng Thái</th>
-                    <th scope="col">Ngày Duyệt</th>
-                    <th>Hóa Đơn</th> <!-- Thay vì cột trống, sử dụng tên rõ ràng -->
-                </tr>
-            </thead>
-            <tbody>
-                {% for order in orders %}
-                <tr class="table-light">
-                    <td>{{ order.id }}</td>
-                    <td>{{ order.date_order|date:"d-m-Y H:i:s" }}</td>
-                    <td class="text-success fw-bold">{{ order.get_cart_total }} VND</td>
-                    <td>
-                        <span class="badge {% if order.status == 'approved' %}bg-success{% else %}bg-warning text-dark{% endif %}">
-                            {% if order.status == 'approved' %}
-                                Đã duyệt
-                            {% else %}
-                                Chưa duyệt
-                            {% endif %}
-                        </span>
-                    </td>
-                    <td>
-                        {% if order.approved_date %}
-                            {{ order.approved_date|date:"d-m-Y H:i:s" }}
-                        {% else %}
-                            <span class="text-muted">Chưa duyệt</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if order.invoice %}
-                            <a href="{% url 'invoice_detail' order.invoice.id %}" class="btn btn-custom">Xem</a>
-                        {% else %}
-                            <span class="text-muted">Chưa có hóa đơn</span>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+
+<section style="padding: 60px 0 80px;">
+    <div class="page-wrap">
+        <div style="margin-bottom: 36px;">
+            <p class="section-label">Tài khoản</p>
+            <h1 class="section-title">LỊCH SỬ ĐƠN HÀNG</h1>
+        </div>
+
+        {% if orders %}
+        <!-- Stats row -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:32px;">
+            <div style="background:white;border:1px solid var(--border);border-radius:14px;padding:20px;text-align:center;">
+                <div style="font-family:'Bebas Neue',sans-serif;font-size:2rem;color:var(--ink);">{{ orders|length }}</div>
+                <div style="font-size:.76rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);">Tổng đơn hàng</div>
+            </div>
+            <div style="background:white;border:1px solid var(--border);border-radius:14px;padding:20px;text-align:center;">
+                <div style="font-family:'Bebas Neue',sans-serif;font-size:2rem;color:#27ae60;">{{ orders|length }}</div>
+                <div style="font-size:.76rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);">Hoàn tất</div>
+            </div>
+            <div style="background:white;border:1px solid var(--border);border-radius:14px;padding:20px;text-align:center;">
+                <div style="font-family:'Bebas Neue',sans-serif;font-size:1.3rem;color:var(--gold);">
+                    {% with total=0 %}{{ orders.0.get_cart_total|vnd }}{% endwith %}
+                </div>
+                <div style="font-size:.76rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);">Đơn gần nhất</div>
+            </div>
+        </div>
+
+        <!-- Orders list -->
+        {% for order in orders %}
+        <div class="order-card">
+            <!-- Order number -->
+            <div class="order-num">#{{ order.id }}</div>
+
+            <!-- Info -->
+            <div>
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+                    <span style="font-weight:600;font-size:.95rem;">Đơn hàng #{{ order.id }}</span>
+                    {% if order.status == 'approved' %}
+                    <span class="status-pill pill-approved">✅ Đã duyệt</span>
+                    {% elif order.status == 'canceled' %}
+                    <span class="status-pill pill-canceled">❌ Đã hủy</span>
+                    {% else %}
+                    <span class="status-pill pill-pending">⏳ Chờ duyệt</span>
+                    {% endif %}
+                </div>
+                <div style="display:flex;gap:20px;flex-wrap:wrap;">
+                    <div style="font-size:.8rem;color:var(--muted);">
+                        🗓 {{ order.date_order|date:"d/m/Y H:i" }}
+                    </div>
+                    {% if order.approved_date %}
+                    <div style="font-size:.8rem;color:var(--muted);">
+                        ✅ Duyệt: {{ order.approved_date|date:"d/m/Y H:i" }}
+                    </div>
+                    {% endif %}
+                    <div style="font-size:.8rem;color:var(--muted);">
+                        📦 {{ order.get_cart_items }} sản phẩm
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: total + action -->
+            <div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:10px;">
+                <div class="order-total">{{ order.get_cart_total|vnd }}</div>
+                {% if order.invoice %}
+                <a href="{% url 'invoice_detail' order.invoice.id %}" class="btn-invoice">Xem hóa đơn</a>
+                {% else %}
+                <span style="font-size:.76rem;color:var(--muted);">Chưa có hóa đơn</span>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+
+        <div style="margin-top:28px;">
+            <a href="{% url 'home' %}" style="display:inline-flex;align-items:center;gap:6px;font-size:.82rem;font-weight:600;color:var(--muted);text-decoration:none;transition:color .2s;">← Tiếp tục mua sắm</a>
+        </div>
+
+        {% else %}
+        <div style="text-align:center;padding:100px 0;">
+            <div style="font-size:4rem;margin-bottom:20px;">📦</div>
+            <h3 style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:2px;margin-bottom:10px;">CHƯA CÓ ĐƠN HÀNG</h3>
+            <p style="color:var(--muted);margin-bottom:28px;font-size:.9rem;">Bạn chưa có đơn hàng nào. Hãy khám phá sản phẩm và đặt ngay!</p>
+            <a href="{% url 'home' %}" style="display:inline-block;padding:14px 32px;background:var(--ink);color:white;border-radius:12px;text-decoration:none;font-size:.84rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;">Mua sắm ngay</a>
+        </div>
+        {% endif %}
     </div>
-    <br/>
-    <a href="{% url 'home' %}" class="btn-back"><i class="bi bi-arrow-left-circle"></i>Quay lại</a>
-    {% else %}
-        <p class="text-center text-muted">Bạn chưa có đơn hàng nào!</p>
-    {% endif %}
-</div>
+</section>
+{% endblock %}

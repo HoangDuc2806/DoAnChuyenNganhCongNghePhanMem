@@ -144,3 +144,45 @@ class Invoice(models.Model):
     def formatted_invoice_date(self):
         # Chuyển đổi thời gian thành định dạng 24 giờ
         return self.invoice_date.strftime('%d/%m/%Y %H:%M')
+
+
+# =====================================================
+# ProductVariant — Màu sắc và size của từng sản phẩm
+# =====================================================
+class ProductVariant(models.Model):
+    AVAILABLE = 'available'
+    OUT_OF_STOCK = 'out_of_stock'
+    STATUS_CHOICES = [
+        (AVAILABLE, 'Còn hàng'),
+        (OUT_OF_STOCK, 'Hết hàng'),
+    ]
+
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name='variants'
+    )
+    color = models.CharField(max_length=50, verbose_name='Màu sắc')
+    color_hex = models.CharField(
+        max_length=7, default='#000000',
+        verbose_name='Mã màu hex',
+        help_text='Ví dụ: #FF0000'
+    )
+    size = models.CharField(max_length=10, verbose_name='Size')
+    stock = models.IntegerField(default=0, verbose_name='Số lượng tồn')
+
+    @property
+    def status(self):
+        return self.AVAILABLE if self.stock > 0 else self.OUT_OF_STOCK
+
+    @property
+    def is_available(self):
+        return self.stock > 0
+
+    def __str__(self):
+        return f"{self.product.name} | {self.color} | Size {self.size} | Tồn: {self.stock}"
+
+    class Meta:
+        verbose_name = 'Biến thể sản phẩm'
+        verbose_name_plural = 'Biến thể sản phẩm'
+        ordering = ['color', 'size']

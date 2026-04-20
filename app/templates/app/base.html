@@ -1,4 +1,4 @@
-{% load static %}
+{% load static vnd_filters %}
 <!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -235,9 +235,15 @@
         <div class="chat-header-bar">
             <div class="chat-hinfo">
                 <div class="chat-avatar">🤖</div>
-                <div><h6>DLN Assistant</h6><small>Trực tuyến · Phản hồi ngay</small></div>
+                <div><h6>DLN Assistant</h6><small id="chatStatus">Trực tuyến · Phản hồi ngay</small></div>
             </div>
-            <button class="chat-close" id="chatClose">×</button>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <button id="chatClearBtn" title="Cuộc trò chuyện mới"
+                    style="background:rgba(255,255,255,.15);border:none;color:white;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:.8rem;transition:background .2s;display:flex;align-items:center;justify-content:center;">
+                    ↺
+                </button>
+                <button class="chat-close" id="chatClose">×</button>
+            </div>
         </div>
         <div class="chat-msgs" id="chatMsgs">
             <div class="msg bot">Xin chào! Tôi là DLN Assistant 👋 Tôi có thể giúp bạn tìm giày, tư vấn size, hoặc hỗ trợ đơn hàng!</div>
@@ -272,30 +278,91 @@
         },220);
     });
     document.addEventListener('click',e=>{if(searchInput&&!searchInput.contains(e.target)&&!searchSugg.contains(e.target))searchSugg.style.display='none';});
-    const chatFab=document.getElementById('chatFab'),chatWin=document.getElementById('chatWindow'),chatClose=document.getElementById('chatClose'),chatMsgs=document.getElementById('chatMsgs'),chatInput=document.getElementById('chatInput'),chatSend=document.getElementById('chatSend');
+    const chatFab=document.getElementById('chatFab'),chatWin=document.getElementById('chatWindow'),chatClose=document.getElementById('chatClose'),chatMsgs=document.getElementById('chatMsgs'),chatInput=document.getElementById('chatInput'),chatSend=document.getElementById('chatSend'),chatClearBtn=document.getElementById('chatClearBtn'),chatStatus=document.getElementById('chatStatus');
     chatFab.addEventListener('click',()=>chatWin.classList.toggle('open'));
     chatClose.addEventListener('click',()=>chatWin.classList.remove('open'));
     chatSend.addEventListener('click',sendChat);
     chatInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();sendChat();}});
-    function scrollChat(){chatMsgs.scrollTop=chatMsgs.scrollHeight;}
-    async function sendChat(){
-        const msg=chatInput.value.trim();if(!msg)return;
-        addMsg(msg,'user');chatInput.value='';showTyping();
+
+    // Nút xóa lịch sử — reset cuộc trò chuyện
+    chatClearBtn.addEventListener('click', async ()=>{
         try{
-            const r=await fetch('/chatbot/api/',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','X-CSRFToken':getCookie('csrftoken')},body:`message=${encodeURIComponent(msg)}`});
-            const d=await r.json();hideTyping();addMsg(d.reply,'bot',d);
-        }catch(e){hideTyping();addMsg('Xin lỗi, đã có lỗi xảy ra. Vui lòng thử lại.','bot');}
+            await fetch('/chatbot/clear/',{method:'POST',headers:{'X-CSRFToken':getCookie('csrftoken')}});
+        }catch(e){}
+        // Xóa UI về trạng thái ban đầu
+        chatMsgs.innerHTML='';
+        addMsg('Xin chào! Tôi là DLN Assistant 👋 Tôi có thể giúp bạn tìm giày, tư vấn size, hoặc hỗ trợ đơn hàng!','bot');
+        chatStatus.textContent='Trực tuyến · Phản hồi ngay';
+    });
+
+    function scrollChat(){chatMsgs.scrollTop=chatMsgs.scrollHeight;}
+
+    async function sendChat(){
+        const msg=chatInput.value.trim();
+        if(!msg)return;
+        addMsg(msg,'user');
+        chatInput.value='';
+        chatInput.disabled=true;
+        chatSend.disabled=true;
+        chatStatus.textContent='Đang trả lời...';
+        showTyping();
+        try{
+            const r=await fetch('/chatbot/api/',{
+                method:'POST',
+                headers:{'Content-Type':'application/x-www-form-urlencoded','X-CSRFToken':getCookie('csrftoken')},
+                body:`message=${encodeURIComponent(msg)}`
+            });
+            if(!r.ok) throw new Error(`HTTP ${r.status}`);
+            const d=await r.json();
+            hideTyping();
+            addMsg(d.reply,'bot', d.product_links||[]);
+            chatStatus.textContent='Trực tuyến · Phản hồi ngay';
+        }catch(e){
+            hideTyping();
+            addMsg('Xin lỗi, hệ thống đang bận. Vui lòng thử lại sau ít phút! 🙏','bot',[]);
+            chatStatus.textContent='Lỗi kết nối';
+        }finally{
+            chatInput.disabled=false;
+            chatSend.disabled=false;
+            chatInput.focus();
+        }
     }
-    function addMsg(text,type,data={}){
-        const el=document.createElement('div');el.className=`msg ${type}`;
+
+    function addMsg(text, type, productLinks=[]){
+        const el=document.createElement('div');
+        el.className=`msg ${type}`;
         if(type==='bot'){
             el.innerHTML=marked.parse(text);
-            if(data.show_button){const btn=document.createElement('button');btn.textContent=`🛒 Thêm ${data.product_name}`;btn.style.cssText='margin-top:8px;padding:6px 14px;background:var(--gold);color:white;border:none;border-radius:8px;cursor:pointer;font-size:.8rem;';btn.onclick=()=>{addFromChat(data.product_id);btn.disabled=true;btn.textContent='✅ Đã thêm!';};el.appendChild(btn);}
-        }else{el.textContent=text;}
-        chatMsgs.appendChild(el);scrollChat();
+            // Render chip sản phẩm có thể bấm
+            if(productLinks && productLinks.length>0){
+                const chipWrap=document.createElement('div');
+                chipWrap.style.cssText='display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;';
+                productLinks.forEach(p=>{
+                    const chip=document.createElement('a');
+                    chip.href=p.url;
+                    chip.textContent='👟 '+p.name;
+                    chip.style.cssText='display:inline-flex;align-items:center;gap:4px;padding:5px 12px;background:var(--ink);color:white;border-radius:20px;font-size:.76rem;font-weight:600;text-decoration:none;transition:background .2s;white-space:nowrap;';
+                    chip.onmouseenter=()=>chip.style.background='var(--gold)';
+                    chip.onmouseleave=()=>chip.style.background='var(--ink)';
+                    chipWrap.appendChild(chip);
+                });
+                el.appendChild(chipWrap);
+            }
+        }else{
+            el.textContent=text;
+        }
+        chatMsgs.appendChild(el);
+        scrollChat();
     }
-    function addFromChat(pid){fetch('/update_item/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCookie('csrftoken')},body:JSON.stringify({productId:pid,action:'add'})}).then(r=>r.json()).then(d=>{const ct=document.getElementById('cart-total');if(ct)ct.textContent=parseInt(ct.textContent||0)+1;});}
-    function showTyping(){const el=document.createElement('div');el.id='typingDots';el.className='msg bot typing-dots';el.innerHTML='<span></span><span></span><span></span>';chatMsgs.appendChild(el);scrollChat();}
+
+    function showTyping(){
+        const el=document.createElement('div');
+        el.id='typingDots';
+        el.className='msg bot typing-dots';
+        el.innerHTML='<span></span><span></span><span></span>';
+        chatMsgs.appendChild(el);
+        scrollChat();
+    }
     function hideTyping(){const el=document.getElementById('typingDots');if(el)el.remove();}
     </script>
 </body>

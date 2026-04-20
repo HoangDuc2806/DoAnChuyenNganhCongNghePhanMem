@@ -1,5 +1,5 @@
 {% extends 'app/base.html' %}
-{% load static %}
+{% load static vnd_filters %}
 
 {% block cart_content %}
 <style>
@@ -36,7 +36,7 @@
                                 {% for cat in item.product.category.all %}{{ cat.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
                             </div>
                             <h6 style="font-weight:600;font-size:.95rem;margin-bottom:8px;">{{ item.product.name }}</h6>
-                            <div style="font-family:'Bebas Neue',sans-serif;font-size:1.1rem;letter-spacing:1px;color:var(--ink);">{{ item.product.price|floatformat:0 }} ₫</div>
+                            <div style="font-family:'Bebas Neue',sans-serif;font-size:1.1rem;letter-spacing:1px;color:var(--ink);">{{ item.product.price|vnd }}</div>
                             <div class="qty-row" style="margin-top:10px;">
                                 <button class="qty-b update-cart" data-product="{{ item.product.id }}" data-action="remove">−</button>
                                 <span class="qty-n">{{ item.quantity }}</span>
@@ -44,7 +44,7 @@
                             </div>
                         </div>
                         <div style="text-align:right;">
-                            <div style="font-family:'Bebas Neue',sans-serif;font-size:1.2rem;color:var(--ink);letter-spacing:1px;white-space:nowrap;">{{ item.get_total|floatformat:0 }} ₫</div>
+                            <div style="font-family:'Bebas Neue',sans-serif;font-size:1.2rem;color:var(--ink);letter-spacing:1px;white-space:nowrap;">{{ item.get_total|vnd }}</div>
                             <button class="update-cart" data-product="{{ item.product.id }}" data-action="delete"
                                 style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:.78rem;margin-top:8px;transition:color .2s;padding:0;">✕ Xóa</button>
                         </div>
@@ -62,7 +62,7 @@
                     </div>
                     <div style="display:flex;justify-content:space-between;margin-bottom:10px;font-size:.88rem;">
                         <span style="color:var(--muted);">Tạm tính</span>
-                        <span style="font-weight:600;">{{ order.get_cart_total|floatformat:0 }} ₫</span>
+                        <span style="font-weight:600;">{{ order.get_cart_total|vnd }}</span>
                     </div>
                     <div style="display:flex;justify-content:space-between;margin-bottom:10px;font-size:.88rem;">
                         <span style="color:var(--muted);">Giao hàng</span>
@@ -71,7 +71,7 @@
                     <hr style="border-color:var(--border);margin:16px 0;">
                     <div style="display:flex;justify-content:space-between;margin-bottom:24px;">
                         <span style="font-weight:600;">Tổng cộng</span>
-                        <span style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:1px;">{{ order.get_cart_total|floatformat:0 }} ₫</span>
+                        <span style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:1px;">{{ order.get_cart_total|vnd }}</span>
                     </div>
                     <a href="{% url 'checkout' %}"
                         style="display:block;text-align:center;padding:15px;background:var(--ink);color:white;border-radius:12px;font-size:.84rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;text-decoration:none;transition:background .2s;margin-bottom:10px;">
