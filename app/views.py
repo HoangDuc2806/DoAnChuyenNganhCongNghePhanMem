@@ -1,13 +1,60 @@
-from django.shortcuts import render, redirect
+# ==============================================================================
+# 1. KHAI BÁO THƯ VIỆN (IMPORTS)
+# Gom toàn bộ các thư viện từ trên xuống dưới lên đầu file để dễ quản lý
+# ==============================================================================
+
+# Thư viện chuẩn của Python
+import json
+
+# Thư viện bên thứ ba (Stripe, Django REST framework)
+import stripe
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+
+# Các module cốt lõi của Django
+from django.conf import settings
+from django.shortcuts import render, redirect, get_object_or_404
 from django.http import JsonResponse
-from .models import *
-import json , stripe 
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
-from app.models import Product
-from django.conf import settings
-def detail(request):
+from django.utils.timezone import now, localtime
+
+# Các module từ ứng dụng (models, serializers)
+from .models import * # Import toàn bộ model (Product, Order, OrderItem, Category, Invoice...)
+from app.models import Product  # Dòng này hơi thừa vì đã có import * ở trên, nhưng giữ nguyên theo logic cũ
+from .serializers import ProductSerializer
+
+# Cấu hình khóa bí mật cho Stripe
+stripe.api_key = settings.STRIPE_SECRET_KEY
+
+
+# ==============================================================================
+# 2. XÁC THỰC NGƯỜI DÙNG (AUTHENTICATION)
+# Các hàm xử lý Đăng ký, Đăng nhập, Đăng xuất
+# ==============================================================================
+
+def register(request):
+    # Khởi tạo form đăng ký người dùng trống
+    form = CreateUserForm() 
+    
+    # Nếu người dùng gửi dữ liệu lên (nhấn nút Đăng ký)
+    if request.method == "POST":
+        # Điền dữ liệu POST vào form
+        form = CreateUserForm(request.POST)
+        user_not_login = "hidden" # Ẩn nút đăng nhập/đăng ký
+        user_login = "show"       # Hiện thông tin người dùng
+        
+        # Kiểm tra tính hợp lệ của dữ liệu form
+        if form.is_valid():
+            form.save()           # Lưu tài khoản mới vào database
+            return redirect('login') # Chuyển hướng đến trang đăng nhập
+            
+    # Mặc định trạng thái hiển thị cho khách (chưa đăng nhập)
+    user_not_login = "show"
+    user_login = "hidden"
+    
+    # Kiểm tra giỏ hàng để hiển thị trên thanh điều hướng (header)
     if request.user.is_authenticated:
         customer = request.user
         order, created = Order.objects.get_or_create(customer=customer, complete=False)
@@ -19,45 +66,131 @@ def detail(request):
         items = []
         order = {'get_cart_total': 0, 'get_cart_items': 0}
         cartItems = 0
-        user_not_login = "show"
-        user_login = "hidden"
-
-    id = request.GET.get('id', '')
-    product = Product.objects.get(id=id)  # ✅ Lấy sản phẩm chính
-
-    # ✅ Lấy các sản phẩm tương tự (cùng danh mục, trừ chính nó)
-    related_products = Product.objects.filter(
-        category__in=product.category.all()
-    ).exclude(id=product.id)[:4]
-
-    categories = Category.objects.filter(is_sub=False)
-
+        
+    # Chuẩn bị dữ liệu gửi ra giao diện
     context = {
-        'products': [product],          # dùng list để tương thích template cũ
-        'related_products': related_products,  # ✅ thêm vào
-        'categories': categories,
+        'form': form,
+        'user_not_login': user_not_login,
+        'user_login': user_login,
+        'items': items,
+        'order': order,
+        'cartItems': cartItems,
+    }
+    return render(request, 'app/register.html', context)
+
+
+def loginPage(request):
+    # Nếu đã đăng nhập thì tự động chuyển về trang chủ
+    if request.user.is_authenticated:
+        return redirect('home')
+    
+    # Xử lý khi người dùng gửi form đăng nhập
+    if request.method == "POST":
+        username = request.POST.get('username') # Lấy tên đăng nhập
+        password = request.POST.get('password') # Lấy mật khẩu
+        # Dùng hàm authenticate của Django để kiểm tra thông tin
+        user = authenticate(request, username=username, password=password)
+        
+        user_not_login = "hidden"
+        user_login = "show"
+        
+        if user is not None:
+            login(request, user)  # Tạo session đăng nhập cho user
+            return redirect('home') # Chuyển hướng về trang chủ
+        else:
+            # Báo lỗi nếu sai tài khoản/mật khẩu
+            messages.info(request, 'user or password not correct!')
+            
+    # Lấy thông tin giỏ hàng để hiển thị trên giao diện
+    if request.user.is_authenticated:
+        customer = request.user
+        order, created = Order.objects.get_or_create(customer=customer, complete=False)
+        items = order.orderitem_set.all()
+        cartItems = order.get_cart_items
+        user_not_login = "hidden"
+        user_login = "show"
+    else:
+        items = []
+        order = {'get_cart_total': 0, 'get_cart_items': 0}
+        cartItems = 0
+        
+    # Setup trạng thái hiển thị cho khách
+    user_not_login = "show"
+    user_login = "hidden"
+    
+    context = { 
         'items': items,
         'order': order,
         'cartItems': cartItems,
         'user_not_login': user_not_login,
         'user_login': user_login
     }
-    return render(request, 'app/detail.html', context)
+    return render(request, 'app/login.html', context)
 
 
-# Tìm kiếm sản phẩm
-def category(request):
-    categories = Category.objects.filter(is_sub=False)
-    active_category = request.GET.get('category', '')  # Lấy slug danh mục từ URL
+def logoutPage(request):
+    # Xóa session đăng nhập của người dùng
+    logout(request)
+    # Chuyển hướng về lại trang đăng nhập
+    return redirect('login')
 
-    # Kiểm tra nếu active_category có giá trị
-    if active_category:
-        # Lọc sản phẩm dựa vào slug của Category
-        categories_with_slug = Category.objects.filter(slug=active_category)
-        products = Product.objects.filter(category__in=categories_with_slug)  # Lọc sản phẩm thuộc về những Category có slug này
+
+# ==============================================================================
+# 3. TRANG CHÍNH & TÌM KIẾM (MAIN PAGES & SEARCH)
+# Trang chủ, Trang danh mục, Chi tiết sản phẩm, Tìm kiếm
+# ==============================================================================
+
+def home(request):
+    # Kiểm tra trạng thái đăng nhập để hiển thị giỏ hàng
+    if request.user.is_authenticated:
+        customer = request.user
+        # Lấy giỏ hàng đang mở (complete=False), nếu chưa có thì tạo mới
+        order, created = Order.objects.get_or_create(customer=customer, complete=False)
+        items = order.orderitem_set.all() # Lấy tất cả sản phẩm trong giỏ
+        cartItems = order.get_cart_items  # Lấy tổng số lượng sản phẩm
+        user_not_login = "hidden"
+        user_login = "show"
     else:
-        products = Product.objects.all()  # Nếu không có slug thì hiển thị tất cả sản phẩm
+        # Giả lập dữ liệu trống nếu chưa đăng nhập
+        items = []
+        order = {'get_cart_total': 0, 'get_cart_items': 0} 
+        cartItems = 0 
+        user_not_login = "show"
+        user_login = "hidden"
+        
+    # Lấy danh sách danh mục cha (không phải danh mục con)
+    categories = Category.objects.filter(is_sub=False)
+    active_category = request.GET.get('category','') # Trạng thái danh mục đang chọn
 
+    products = Product.objects.all()  # Lấy toàn bộ sản phẩm từ DB
+    
+    context = {
+        'categories': categories,
+        'active_category': active_category,
+        'products': products,
+        'cartItems': cartItems,
+        'user_not_login': user_not_login,
+        'user_login': user_login
+    }
+    return render(request, 'app/home.html', context)
+
+
+def category(request):
+    # Lấy danh sách danh mục cha để hiển thị menu
+    categories = Category.objects.filter(is_sub=False)
+    active_category = request.GET.get('category', '')  # Lấy tham số 'category' từ URL (slug)
+
+    # Nếu URL có tham số danh mục (vd: ?category=ao-thun)
+    if active_category:
+        # Tìm danh mục có slug tương ứng
+        categories_with_slug = Category.objects.filter(slug=active_category)
+        # Lấy các sản phẩm thuộc danh mục đó
+        products = Product.objects.filter(category__in=categories_with_slug) 
+    else:
+        # Không chọn gì thì lấy tất cả sản phẩm
+        products = Product.objects.all() 
+
+    # Cập nhật số lượng giỏ hàng trên giao diện header
     if request.user.is_authenticated:
         customer = request.user
         order, created = Order.objects.get_or_create(customer=customer, complete=False)
@@ -71,7 +204,7 @@ def category(request):
         cartItems = 0
         user_not_login = "show"
         user_login = "hidden"
-        customer = None  # Ensure 'customer' is defined when the user is not logged in
+        customer = None  # Đảm bảo 'customer' tồn tại
         order, created = Order.objects.get_or_create(customer=customer, complete=False)
 
     context = {
@@ -85,31 +218,77 @@ def category(request):
         'active_category': active_category
     }
     return render(request, 'app/category.html', context)
-def search(request):
-    searched = ''  # Đảm bảo rằng searched luôn được định nghĩa
-    keys = []  # Danh sách sản phẩm mặc định là rỗng
 
-    if request.method == "POST":
-        searched = request.POST["searched"]  # Lấy từ form tìm kiếm
-        keys = Product.objects.filter(name__icontains=searched)  # Lọc sản phẩm theo tên, không phân biệt chữ hoa chữ thường
 
-    # Kiểm tra xem người dùng đã đăng nhập chưa
+def detail(request):
+    # Lấy dữ liệu giỏ hàng để render thanh header
     if request.user.is_authenticated:
         customer = request.user
         order, created = Order.objects.get_or_create(customer=customer, complete=False)
         items = order.orderitem_set.all()
-        cartItems = order.get_cart_items  # Lấy tổng số lượng sản phẩm trong giỏ hàng
+        cartItems = order.get_cart_items
         user_not_login = "hidden"
         user_login = "show"
     else:
         items = []
-        order = {'get_cart_total': 0, 'get_cart_items': 0}  # Giả lập dữ liệu nếu người dùng không đăng nhập
-        cartItems = 0  # Tổng số sản phẩm mặc định là 0
+        order = {'get_cart_total': 0, 'get_cart_items': 0}
+        cartItems = 0
         user_not_login = "show"
         user_login = "hidden"
-        # Không cần tạo 'order' nếu người dùng chưa đăng nhập
+
+    # Lấy ID sản phẩm từ URL (vd: ?id=5)
+    id = request.GET.get('id', '')
+    product = Product.objects.get(id=id)  # ✅ Lấy đối tượng sản phẩm chính từ DB
+
+    # ✅ Lấy các sản phẩm tương tự (cùng danh mục, trừ chính sản phẩm đang xem, giới hạn 4 cái)
+    related_products = Product.objects.filter(
+        category__in=product.category.all()
+    ).exclude(id=product.id)[:4]
+
+    # Lấy danh mục để hiển thị menu
     categories = Category.objects.filter(is_sub=False)
-    products = Product.objects.all()  # Lấy danh sách sản phẩm để hiển thị
+
+    context = {
+        'products': [product],          # Bọc trong list để tương thích với template cũ
+        'related_products': related_products,  # ✅ Danh sách sản phẩm tương tự
+        'categories': categories,
+        'items': items,
+        'order': order,
+        'cartItems': cartItems,
+        'user_not_login': user_not_login,
+        'user_login': user_login
+    }
+    return render(request, 'app/detail.html', context)
+
+
+def search(request):
+    searched = ''  # Đảm bảo biến luôn tồn tại
+    keys = []      # Danh sách kết quả tìm kiếm rỗng mặc định
+
+    # Xử lý khi có form tìm kiếm gửi lên
+    if request.method == "POST":
+        searched = request.POST["searched"]  # Lấy từ khóa từ thẻ input form
+        # Lọc sản phẩm có tên chứa từ khóa (không phân biệt hoa/thường - icontains)
+        keys = Product.objects.filter(name__icontains=searched) 
+
+    # Lấy giỏ hàng cho Header
+    if request.user.is_authenticated:
+        customer = request.user
+        order, created = Order.objects.get_or_create(customer=customer, complete=False)
+        items = order.orderitem_set.all()
+        cartItems = order.get_cart_items 
+        user_not_login = "hidden"
+        user_login = "show"
+    else:
+        items = []
+        order = {'get_cart_total': 0, 'get_cart_items': 0} 
+        cartItems = 0 
+        user_not_login = "show"
+        user_login = "hidden"
+
+    categories = Category.objects.filter(is_sub=False)
+    products = Product.objects.all()  # Lấy tất cả làm nền hoặc đề xuất thêm
+    
     return render(request, 'app/search.html', {
         "searched": searched,
         "keys": keys,
@@ -120,122 +299,33 @@ def search(request):
         'user_login': user_login
     })
 
-# Hàm đăng ký người dùng mới
-def register(request):
-    form = CreateUserForm()
-    if request.method == "POST":
-        form = CreateUserForm(request.POST)
-        user_not_login = "hidden"
-        user_login = "show"
-        if form.is_valid():
-            form.save()
-            return redirect('login')
-    user_not_login = "show"
-    user_login = "hidden"
-    if request.user.is_authenticated:
-        customer = request.user
-        order, created = Order.objects.get_or_create(customer=customer, complete=False)
-        items = order.orderitem_set.all()
-        cartItems = order.get_cart_items
-        user_not_login = "hidden"
-        user_login = "show"
-    else:
-        items = []
-        order = {'get_cart_total': 0, 'get_cart_items': 0}
-        cartItems = 0
-    context = {'form': form,
-               'user_not_login': user_not_login,
 
-        'user_login': user_login,
-        'items': items,
-        'order': order,
-        'cartItems': cartItems,
-               }
-    return render(request, 'app/register.html', context)
+def search_suggestions(request):
+    # Xử lý AJAX gợi ý tìm kiếm
+    query = request.GET.get('term', '').strip() # Lấy từ khóa đang gõ
+    suggestions = []
+
+    if query:
+        # Giới hạn lấy 5 sản phẩm khớp đầu tiên
+        products = Product.objects.filter(name__icontains=query)[:7] 
+        # Đóng gói kết quả thành danh sách dict (JSON chuẩn)
+        suggestions = [{'id': p.id, 'name': p.name} for p in products]
+
+    # Trả về chuỗi JSON, cho phép list không bọc trong dict (safe=False)
+    return JsonResponse(suggestions, safe=False)
 
 
-# Hàm đăng nhập
-def loginPage(request):
-    if request.user.is_authenticated:
-        return redirect('home')
-    
-    if request.method == "POST":
-        username = request.POST.get('username')
-        password = request.POST.get('password')
-        user = authenticate(request, username=username, password=password)
-        user_not_login = "hidden"
-        user_login = "show"
-        if user is not None:
-            login(request, user)
-            return redirect('home')
-        else:
-            messages.info(request, 'user or password not correct!')
-    if request.user.is_authenticated:
-        customer = request.user
-        order, created = Order.objects.get_or_create(customer=customer, complete=False)
-        items = order.orderitem_set.all()
-        cartItems = order.get_cart_items
-        user_not_login = "hidden"
-        user_login = "show"
-    else:
-        items = []
-        order = {'get_cart_total': 0, 'get_cart_items': 0}
-        cartItems = 0
-    user_not_login = "show"
-    user_login = "hidden"
-    context = { 'items': items,
-        'order': order,
-        'cartItems': cartItems,
-        'user_not_login': user_not_login,
+# ==============================================================================
+# 4. GIỎ HÀNG, CHECKOUT & HÓA ĐƠN (CART, CHECKOUT & INVOICES)
+# ==============================================================================
 
-        'user_login': user_login
-        }
-    return render(request, 'app/login.html', context)
-
-
-# Hàm đăng xuất
-def logoutPage(request):
-    logout(request)
-    return redirect('login')
-
-
-# Trang chủ
-def home(request):
-    if request.user.is_authenticated:
-        customer = request.user
-        order, created = Order.objects.get_or_create(customer=customer, complete=False)
-        items = order.orderitem_set.all()
-        cartItems = order.get_cart_items  # Lấy tổng số lượng sản phẩm trong giỏ hàng
-        user_not_login = "hidden"
-        user_login = "show"
-    else:
-        items = []
-        order = {'get_cart_total': 0, 'get_cart_items': 0}  # Giả lập dữ liệu nếu người dùng không đăng nhập
-        cartItems = 0  # Tổng số sản phẩm mặc định là 0
-        user_not_login = "show"
-        user_login = "hidden"
-    categories = Category.objects.filter(is_sub =False)
-    active_category = request.GET.get('category','')
-
-    products = Product.objects.all()  # Lấy danh sách sản phẩm để hiển thị
-    context = {
-        'categories': categories,
-        'active_category': active_category,
-        'products': products,
-        'cartItems': cartItems,
-        'user_not_login': user_not_login,
-        'user_login': user_login
-    }
-    return render(request, 'app/home.html', context)
-
-
-# Giỏ hàng
 def cart(request):
+    # Lấy thông tin giỏ hàng
     if request.user.is_authenticated:
         customer = request.user
         order, created = Order.objects.get_or_create(customer=customer, complete=False)
-        items = order.orderitem_set.all()
-        cartItems = order.get_cart_items
+        items = order.orderitem_set.all() # Các dòng sản phẩm
+        cartItems = order.get_cart_items  # Tổng số sản phẩm
         user_not_login = "hidden"
         user_login = "show"
     else:
@@ -244,7 +334,9 @@ def cart(request):
         cartItems = 0
         user_not_login = "show"
         user_login = "hidden"
-    categories = Category.objects.filter(is_sub =False)
+        
+    categories = Category.objects.filter(is_sub=False)
+    
     context = {
         'categories': categories,
         'items': items,
@@ -255,111 +347,102 @@ def cart(request):
     }
     return render(request, 'app/cart.html', context)
 
-from django.http import JsonResponse
-import json
-from .models import Product, Order, OrderItem
 
 def updateItem(request):
-    data = json.loads(request.body)
-    productId = data['productId']
-    action = data['action']
+    # Hàm xử lý AJAX thao tác: Thêm, Bớt, Xóa sản phẩm trong giỏ
+    data = json.loads(request.body)  # Đọc dữ liệu JSON gửi từ file JS
+    productId = data['productId']    # ID của sản phẩm cần thao tác
+    action = data['action']          # Loại hành động (add, remove, delete)
+    
     print('Action:', action)
     print('Product:', productId)
 
-    # Lấy user (đăng nhập)
-    customer = request.user
+    customer = request.user # Chỉ dùng được khi người dùng đã đăng nhập
+    product = Product.objects.get(id=productId) # Lấy đối tượng sản phẩm từ DB
 
-    # Lấy sản phẩm
-    product = Product.objects.get(id=productId)
-
-    # Lấy hoặc tạo Order (giỏ hàng hiện tại)
+    # Lấy giỏ hàng hiện tại (chưa thanh toán)
     order, created = Order.objects.get_or_create(customer=customer, complete=False)
-
-    # Tìm item trong giỏ
+    
+    # Tìm xem sản phẩm này đã có trong giỏ hàng chưa
     orderItem = OrderItem.objects.filter(order=order, product=product).first()
 
-    # Nếu chưa có mà không phải hành động delete thì tạo
+    # Nếu chưa có trong giỏ và hành động không phải là 'delete' -> Tạo mới
     if not orderItem and action != 'delete':
         orderItem = OrderItem.objects.create(order=order, product=product, quantity=0)
 
-    # Xử lý hành động
+    # Cập nhật số lượng dựa trên action
     if action == 'add':
-        orderItem.quantity += 1
+        orderItem.quantity += 1 # Thêm 1
         orderItem.save()
-
+        
     elif action == 'remove':
-        orderItem.quantity -= 1
+        orderItem.quantity -= 1 # Giảm 1
         if orderItem.quantity <= 0:
-            orderItem.delete()
+            orderItem.delete()  # Xóa luôn nếu số lượng về 0
         else:
             orderItem.save()
-
+            
     elif action == 'delete':
         if orderItem:
-            orderItem.delete()
+            orderItem.delete()  # Xóa hoàn toàn khỏi giỏ
             print(f"🗑️ Deleted product {productId} from cart")
         else:
             print("⚠️ Tried to delete non-existent item")
 
-    # Trả dữ liệu về
+    # Trả về JSON tổng số sản phẩm mới cập nhật để JS render lại số trên logo giỏ
     cart_items = order.get_cart_items if hasattr(order, 'get_cart_items') else 0
     return JsonResponse({'message': 'Cart updated', 'cart_items': cart_items})
 
 
-
-from django.shortcuts import render, redirect
-from django.utils.timezone import now, localtime
-from django.contrib import messages
-from .models import Order, OrderItem, Category, Invoice  # Đảm bảo Invoice đã được thêm
-
 def checkout(request):
-    # Kiểm tra nếu người dùng đã đăng nhập
     user = request.user if request.user.is_authenticated else None
     user_not_login = "hidden" if user else "show"
     user_login = "show" if user else "hidden"
 
-    # Kiểm tra giỏ hàng
     cartItems = 0
     order = None
     items = []
 
     if user:
         try:
+            # Tìm giỏ hàng hiện tại
             order = Order.objects.get(customer=user, complete=False)
             items = order.orderitem_set.all()
             cartItems = order.get_cart_items
         except Order.DoesNotExist:
+            # Nếu không tìm thấy, báo lỗi và trả về giỏ hàng
             messages.error(request, "Giỏ hàng của bạn trống!")
-            return redirect('cart')  # Nếu không có đơn hàng, chuyển về giỏ hàng
+            return redirect('cart') 
 
-    # Xử lý POST request khi người dùng bấm "Đặt hàng"
+    # Nếu người dùng gửi yêu cầu "Xác nhận đặt hàng"
     if request.method == 'POST':
         if order:
-            current_time = localtime(now())
-            order.date_order = current_time
-            order.complete = True
+            current_time = localtime(now())  # Lấy thời gian hiện tại
+            order.date_order = current_time  # Cập nhật ngày đặt hàng
+            order.complete = True            # Đóng đơn hàng (chuyển sang đã đặt)
             order.save()
 
-            # Tạo hóa đơn cho đơn hàng
+            # ✅ Tự động tạo một Hóa đơn (Invoice) cho Đơn hàng này
             invoice = Invoice.objects.create(
                 order=order,
                 invoice_date=current_time,
                 customer=user,
                 total_amount=order.get_cart_total
             )
+            
+            # Gửi thông báo thành công cho người dùng
             messages.success(
                 request,
                 f"Đặt hàng thành công! Hóa đơn #{invoice.id} đã được tạo lúc {current_time.strftime('%H:%M:%S, %d-%m-%Y')}"
             )
-            return redirect('invoice_detail', id=invoice.id)  # Chuyển hướng đến trang hóa đơn chi tiết
+            # Chuyển tới trang xem chi tiết Hóa đơn mới tạo
+            return redirect('invoice_detail', id=invoice.id) 
         else:
             messages.error(request, "Không có giỏ hàng để đặt!")
             return redirect('cart')
 
-    # Lấy danh mục sản phẩm để hiển thị
     categories = Category.objects.filter(is_sub=False)
 
-    # Truyền thông tin vào context
     context = {
         'categories': categories,
         'items': items,
@@ -368,40 +451,36 @@ def checkout(request):
         'user_not_login': user_not_login,
         'user_login': user_login,
     }
-
     return render(request, 'app/checkout.html', context)
 
 
-from django.shortcuts import render, get_object_or_404
-from .models import Invoice
-
 def invoice_detail(request, id):
-    # Sử dụng get_object_or_404 để đảm bảo nếu không tìm thấy hóa đơn sẽ trả về 404
+    # Tìm hóa đơn theo ID, nếu không tồn tại trả về lỗi 404
     invoice = get_object_or_404(Invoice, id=id)
-    
-    # Truyền đối tượng invoice vào template
+    # Render trang giao diện in Hóa đơn
     return render(request, 'app/invoice_detail.html', {'invoice': invoice})
-
-
 
 
 def order_history(request):
     if request.user.is_authenticated:
         user = request.user
+        # Lấy tất cả các đơn hàng đã hoàn tất, sắp xếp từ mới nhất đến cũ nhất
         orders = Order.objects.filter(customer=user, complete=True).order_by('-date_order')
         categories = Category.objects.filter(is_sub=False)
         user_not_login = "hidden"
         user_login = "show"
     else:
+        # Bắt buộc đăng nhập
         messages.warning(request, "Bạn cần đăng nhập để xem lịch sử đơn hàng!")
         return redirect('login')
 
-    # Truyền hóa đơn tương ứng cho từng đơn hàng
+    # Liên kết hóa đơn tương ứng cho từng đơn hàng (dùng để hiển thị link/nút bấm)
     for order in orders:
         try:
-            order.invoice = order.invoice  # Gắn invoice vào từng order
+            # Gắn biến thuộc tính invoice trực tiếp vào object order
+            order.invoice = order.invoice 
         except Invoice.DoesNotExist:
-            order.invoice = None  # Nếu chưa có hóa đơn thì gán None
+            order.invoice = None # Gắn Null nếu đơn đó không có hóa đơn
 
     context = {
         'orders': orders,
@@ -411,131 +490,114 @@ def order_history(request):
     }
     return render(request, 'app/order_history.html', context)
 
-def search_suggestions(request):
-    query = request.GET.get('term', '').strip()
-    suggestions = []
 
-    if query:
-        products = Product.objects.filter(name__icontains=query)[:5]  # Lấy 5 sản phẩm đầu
-        suggestions = [{'id': p.id, 'name': p.name} for p in products]
-
-    return JsonResponse(suggestions, safe=False)
-
-import stripe
-from django.conf import settings
-from django.shortcuts import render, redirect
-
-stripe.api_key = settings.STRIPE_SECRET_KEY
-
-
-import stripe
-from django.http import JsonResponse
+# ==============================================================================
+# 5. THANH TOÁN QUA STRIPE (STRIPE PAYMENTS)
+# ==============================================================================
 
 def create_checkout_session(request):
-
+    # Lấy giỏ hàng hiện tại đang mở
     order = Order.objects.get(
         customer=request.user,
         complete=False
     )
 
+    # Tính tổng tiền, giới hạn không vượt mức tối đa hệ thống
     total_price = min(int(order.get_cart_total), 99999999)
 
-
+    # Giao tiếp với API Stripe để tạo phiên thanh toán mới
     session = stripe.checkout.Session.create(
-        payment_method_types=['card'],
+        payment_method_types=['card'], # Phương thức thẻ
         line_items=[{
             'price_data': {
-                'currency': 'vnd',
+                'currency': 'vnd',     # Tiền tệ: VNĐ
                 'product_data': {
-                    'name': 'Thanh toán đơn hàng'
+                    'name': 'Thanh toán đơn hàng' # Tên sản phẩm hiển thị trên Stripe
                 },
-                'unit_amount': total_price,
+                'unit_amount': total_price, # Số tiền
             },
             'quantity': 1,
         }],
         mode='payment',
+        # Khai báo URL gọi lại nếu thanh toán thành công
         success_url='http://127.0.0.1:8000/success/',
+        # Khai báo URL gọi lại nếu hủy thanh toán
         cancel_url='http://127.0.0.1:8000/payment/',
     )
 
+    # Chuyển hướng trình duyệt đến trang chủ Stripe Checkout
     return redirect(session.url)
 
 
-
-
-
 def payment(request):
-
+    # Trang xem lại trước khi bấm chuyển qua nền tảng Stripe
     if request.user.is_authenticated:
-
         order, created = Order.objects.get_or_create(
             customer=request.user,
             complete=False
         )
-
         context = {
             'order': order
         }
-
         return render(request, 'app/payment.html', context)
-
     else:
         return redirect('login')
 
-def success(request):
 
+def success(request):
+    # URL gọi về sau khi thanh toán trên Stripe thành công
     order = Order.objects.get(customer=request.user, complete=False)
 
+    # Đánh dấu đơn hàng là đã hoàn tất và lưu mã giao dịch
     order.complete = True
     order.status = 'approved'
-    order.transaction_id = "stripe_payment"
-
+    order.transaction_id = "stripe_payment" 
     order.save()
 
     return render(request, 'app/success.html')
 
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from .models import Product
-from .serializers import ProductSerializer
-from django.shortcuts import get_object_or_404
-##Endpoint Get - lay san pham
+
+# ==============================================================================
+# 6. REST API (Dành cho Mobile, React, Vue, tích hợp bên thứ ba,...)
+# API trả về dữ liệu định dạng JSON bằng Django REST Framework (DRF)
+# ==============================================================================
+
+## Endpoint GET - Lấy danh sách toàn bộ sản phẩm
 @api_view(['GET'])
 def get_products(request):
-
-    products = Product.objects.all()
-
-    serializer = ProductSerializer(products, many=True)
-
+    products = Product.objects.all() # Lấy dữ liệu
+    # Chuyển đổi dữ liệu QuerySet thành JSON
+    serializer = ProductSerializer(products, many=True) 
     return Response(serializer.data)
 
-##Endpoint Post - Tạo sản phẩm
+
+## Endpoint POST - Tạo một sản phẩm mới
 @api_view(['POST'])
 def create_product(request):
-
+    # Nhận dữ liệu JSON gửi lên
     serializer = ProductSerializer(data=request.data)
-
+    
+    # Kiểm tra tính hợp lệ
     if serializer.is_valid():
-        serializer.save()
-        return Response(serializer.data, status=201)
+        serializer.save() # Lưu vào database
+        return Response(serializer.data, status=201) # 201: Created
+        
+    # Trả về lỗi nếu dữ liệu thiếu hoặc sai
+    return Response(serializer.errors, status=400) # 400: Bad Request
 
-    return Response(serializer.errors, status=400)
 
-##Endpoint Delete - Xóa sản phẩm
+## Endpoint DELETE - Xóa sản phẩm theo ID (pk: primary key)
 @api_view(['DELETE'])
 def delete_product(request, pk):
-
-    product = get_object_or_404(Product, id=pk)
-
-    product.delete()
-
+    product = get_object_or_404(Product, id=pk) # Tìm, không có trả về 404
+    product.delete() # Lệnh xóa
     return Response({"message": "Product deleted successfully"})
 
+
+## Endpoint GET - Lấy chi tiết một sản phẩm theo ID
 @api_view(['GET'])
 def get_product(request, pk):
-
-    product = get_object_or_404(Product, id=pk)
-
-    serializer = ProductSerializer(product)
-
+    product = get_object_or_404(Product, id=pk) # Tìm theo ID
+    # Chuyển đổi một đối tượng thành JSON
+    serializer = ProductSerializer(product) 
     return Response(serializer.data)

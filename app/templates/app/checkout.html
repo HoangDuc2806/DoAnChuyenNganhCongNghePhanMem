@@ -1,89 +1,250 @@
 {% extends 'app/base.html' %}
 {% load static %}
+
 {% block content_checkout %}
+<style>
+.page-wrap { max-width: 1100px; margin: 0 auto; padding: 0 28px; }
 
-{% comment %} <!-- Hiển thị thông báo -->
-{% if messages %}
-<div class="alert alert-success" role="alert">
-    {% for message in messages %}
-        {{ message }}
-    {% endfor %} {% endcomment %}
-{% comment %} </div>
-{% endif %} {% endcomment %}
-<div class="row">
-    <br/>
-  <a><h2> HOÀN TẤT ĐƠN HÀNG</h2> </a>
-  <hr/>
-    <!-- Phần nhập thông tin -->
-    <div class="col-lg-6">
-        <div class="box-element" id="form-wrapper">
-            <form id="form" method="POST">
-                {% csrf_token %} <!-- Bổ sung token CSRF -->
-                
-                <div id="user-info">
-                    <div class="form-field">
-                        <input required class="form-control" style="width: 250px;" type="text" name="name" placeholder="Họ và tên..">
-                    </div>
-                </div>
+/* Form inputs */
+.field-label {
+    font-size: .72rem;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+    display: block;
+}
+.field-input {
+    width: 100%;
+    height: 48px;
+    padding: 0 16px;
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    font-size: .9rem;
+    font-family: 'DM Sans', sans-serif;
+    outline: none;
+    background: white;
+    transition: border-color .2s;
+    color: var(--ink);
+}
+.field-input:focus { border-color: var(--gold); }
 
-                <div id="shipping-info">
-                    <hr>
-                    <p>Thông tin giao hàng:</p>
-                    <hr>
-                    <div class="form-group" style="display: flex; gap: 20px; flex-wrap: wrap;">
-                        <div class="form-field" style="flex: 1;">
-                            <input class="form-control" style="width: 100%;" type="text" name="address" placeholder="Địa chỉ..">
-                        </div>
-                        <div class="form-field" style="flex: 1;">
-                            <input class="form-control" style="width: 100%;" type="text" name="city" placeholder="Thành phố..">
-                        </div>
-                    </div>
-                    <div class="form-field" style="margin-top: 10px;">
-                        <input class="form-control" style="width: 200px;" type="text" name="zipcode" placeholder="Số điện thoại..">
-                    </div>
-                    
-                </div>
+/* Order item row */
+.order-row {
+    display: grid;
+    grid-template-columns: 64px 1fr auto;
+    gap: 16px;
+    align-items: center;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border);
+}
+.order-row:last-child { border-bottom: none; }
+.order-thumb {
+    width: 64px; height: 64px;
+    background: #f5f4f1;
+    border-radius: 10px;
+    overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+}
+.order-thumb img { width: 100%; height: 100%; object-fit: contain; padding: 6px; }
 
-                <hr>
-                <input id="form-button" class="btn btn-success btn-sm" type="submit" style="background-color: rgb(95, 158, 116);width: 130px;" value="Đặt hàng">
-            </form>
+/* Summary card */
+.summary-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 28px;
+    position: sticky;
+    top: 88px;
+}
+.summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: .87rem;
+    margin-bottom: 12px;
+}
+.summary-row .label { color: var(--muted); }
+.summary-row .value { font-weight: 600; }
+.summary-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1.5px solid var(--border);
+}
+.btn-order {
+    width: 100%;
+    padding: 16px;
+    background: var(--ink);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: .84rem;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background .2s;
+    margin-top: 20px;
+}
+.btn-order:hover { background: var(--gold); }
+.info-badge {
+    display: flex; align-items: center; gap: 8px;
+    font-size: .78rem; color: var(--muted);
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+}
+</style>
+
+<section style="padding: 60px 0 80px;">
+    <div class="page-wrap">
+
+        <!-- Header -->
+        <div style="margin-bottom: 40px;">
+            <p class="section-label">Mua sắm</p>
+            <h1 class="section-title">HOÀN TẤT ĐƠN HÀNG</h1>
         </div>
-    </div>
 
-    <!-- Phần tóm tắt đơn hàng -->
-    <div class="col-lg-6">
-        <div class="box-element">
-            <a class="btn btn-outline-dark"style="background: #fdfcfd; border: 2px solid #0a0a0a; color:#0b0c0c; width: 250px;" href="{% url 'cart' %}">&#x2190; Quay về giỏ hàng</a>
-            <hr>
-            <h3>Thanh Toán</h3>
-            <hr>
-            <table class="table  ">
-                <thead>
-                    <tr>
-                        <th>Hình ảnh</th>
-                        <th>Sản phẩm</th>
-                        <th>Giá</th>
-                        <th>Số lượng</th>
-                    </tr>
-                </thead>
-                {% for item in order.orderitem_set.all %}
-                <tbody>
-                    <tr>
-                        <td>
-                            <img class="row-image" src="{{ item.product.ImageURL }}" alt="{{ item.product.name }}" style="width: 100px; height: auto;">
-                        </td>
-                        <td>{{ item.product.name }}</td>
-                        <td>{{ item.product.price|floatformat:3 }} VND</td>
-                        <td>{{ item.quantity }}</td>
-                    </tr>
-                </tbody>
-                {% endfor %}
-            </table >
-            <div class="justify-content-end">
-                <h5>Sản phẩm: {{ order.get_cart_items }}</h5>
-                <h5>Tổng số tiền: {{ order.get_cart_total|floatformat:3 }} VND</h5></div>
+        <!-- Messages -->
+        {% if messages %}
+        {% for message in messages %}
+        <div style="background: {% if 'thành công' in message|lower %}#edfaf3{% else %}#fff8ec{% endif %};
+                    border: 1px solid {% if 'thành công' in message|lower %}#27ae60{% else %}#f0a500{% endif %};
+                    border-radius: 12px; padding: 14px 18px; font-size: .88rem; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+            {% if 'thành công' in message|lower %}✅{% else %}⚠️{% endif %} {{ message }}
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        <div class="row g-4 align-items-start">
+
+            <!-- LEFT: Shipping form -->
+            <div class="col-lg-7">
+                <div style="background: white; border: 1px solid var(--border); border-radius: 18px; padding: 32px;">
+                    <h5 style="font-family: 'Bebas Neue', sans-serif; font-size: 1.1rem; letter-spacing: 2px; margin-bottom: 24px; padding-bottom: 14px; border-bottom: 1px solid var(--border);">
+                        📦 THÔNG TIN GIAO HÀNG
+                    </h5>
+
+                    <form method="POST" id="checkoutForm">
+                        {% csrf_token %}
+
+                        <!-- Tên khách hàng (readonly vì đã đăng nhập) -->
+                        <div style="margin-bottom: 18px;">
+                            <label class="field-label">Họ và tên</label>
+                            <input class="field-input" type="text" name="name"
+                                value="{{ request.user.get_full_name|default:request.user.username }}"
+                                placeholder="Nhập họ và tên..." required>
+                        </div>
+
+                        <div class="row g-3" style="margin-bottom: 18px;">
+                            <div class="col-md-8">
+                                <label class="field-label">Địa chỉ</label>
+                                <input class="field-input" type="text" name="address" placeholder="Số nhà, tên đường...">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="field-label">Thành phố</label>
+                                <input class="field-input" type="text" name="city" placeholder="Thành phố...">
+                            </div>
+                        </div>
+
+                        <div class="row g-3" style="margin-bottom: 24px;">
+                            <div class="col-md-6">
+                                <label class="field-label">Số điện thoại</label>
+                                <input class="field-input" type="tel" name="mobile" placeholder="09xx xxx xxx">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="field-label">Ghi chú (tuỳ chọn)</label>
+                                <input class="field-input" type="text" name="note" placeholder="Ghi chú cho đơn hàng...">
+                            </div>
+                        </div>
+
+                        <!-- Badges -->
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 28px;">
+                            <div class="info-badge">🚚 Giao hàng toàn quốc</div>
+                            <div class="info-badge">💳 COD hoặc chuyển khoản</div>
+                            <div class="info-badge">🔄 Đổi trả 7 ngày</div>
+                        </div>
+
+                        <button type="submit" class="btn-order" form="checkoutForm">
+                            ✅ Xác nhận đặt hàng
+                        </button>
+                    </form>
+
+                    <a href="{% url 'cart' %}" style="display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 12px; padding: 13px; background: transparent; color: var(--muted); border: 1.5px solid var(--border); border-radius: 12px; font-size: .82rem; font-weight: 500; text-decoration: none; transition: all .2s;">
+                        ← Quay lại giỏ hàng
+                    </a>
+                </div>
             </div>
-            
+
+            <!-- RIGHT: Order summary -->
+            <div class="col-lg-5">
+                <div class="summary-card">
+                    <h5 style="font-family: 'Bebas Neue', sans-serif; font-size: 1.1rem; letter-spacing: 2px; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid var(--border);">
+                        🧾 TÓM TẮT ĐƠN HÀNG
+                    </h5>
+
+                    <!-- Items list -->
+                    <div style="max-height: 320px; overflow-y: auto; padding-right: 4px;">
+                        {% for item in items %}
+                        <div class="order-row">
+                            <div class="order-thumb">
+                                <img src="{{ item.product.ImageURL }}" alt="{{ item.product.name }}">
+                            </div>
+                            <div>
+                                <div style="font-size: .88rem; font-weight: 600; color: var(--ink); line-height: 1.3;">{{ item.product.name }}</div>
+                                <div style="font-size: .76rem; color: var(--muted); margin-top: 3px;">Số lượng: {{ item.quantity }}</div>
+                            </div>
+                            <div style="text-align: right; white-space: nowrap;">
+                                <div style="font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: .5px;">
+                                    {{ item.get_total|floatformat:0 }} ₫
+                                </div>
+                                <div style="font-size: .72rem; color: var(--muted);">
+                                    {{ item.product.price|floatformat:0 }} ₫ × {{ item.quantity }}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Totals -->
+                    <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+                        <div class="summary-row">
+                            <span class="label">Số sản phẩm</span>
+                            <span class="value">{{ order.get_cart_items }} sản phẩm</span>
+                        </div>
+                        <div class="summary-row">
+                            <span class="label">Tạm tính</span>
+                            <span class="value">{{ order.get_cart_total|floatformat:0 }} ₫</span>
+                        </div>
+                        <div class="summary-row">
+                            <span class="label">Phí giao hàng</span>
+                            <span class="value" style="color: #27ae60;">Miễn phí</span>
+                        </div>
+                    </div>
+
+                    <div class="summary-total">
+                        <span style="font-weight: 600; font-size: .9rem;">Tổng thanh toán</span>
+                        <span style="font-family: 'Bebas Neue', sans-serif; font-size: 1.7rem; letter-spacing: 1px; color: var(--ink);">
+                            {{ order.get_cart_total|floatformat:0 }} ₫
+                        </span>
+                    </div>
+
+                    <!-- Security note -->
+                    <div style="margin-top: 18px; padding: 12px; background: var(--paper); border-radius: 10px; display: flex; align-items: flex-start; gap: 8px;">
+                        <span style="font-size: 1rem; flex-shrink: 0;">🔒</span>
+                        <p style="font-size: .76rem; color: var(--muted); margin: 0; line-height: 1.6;">
+                            Thông tin đơn hàng của bạn được bảo mật. Thanh toán an toàn qua COD hoặc Stripe.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
-    {% endblock content_checkout %}
+</section>
+{% endblock content_checkout %}
