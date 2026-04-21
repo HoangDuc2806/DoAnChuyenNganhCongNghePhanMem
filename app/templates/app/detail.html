@@ -167,7 +167,11 @@
         <div class="related-grid">
             {% for item in related_products %}
             <div class="product-card">
-                <div class="img-wrap"><img src="{{ item.ImageURL }}" alt="{{ item.name }}"></div>
+                <div class="img-wrap">
+    <a href="{% url 'detail' %}?id={{ item.id }}">
+        <img src="{{ item.ImageURL }}" alt="{{ item.name }}">
+    </a>
+</div>
                 <div class="card-body">
                     <h5>{{ item.name }}</h5>
                     <div class="price">{{ item.price|vnd }}</div>
