@@ -35,95 +35,76 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 # ==============================================================================
 
 def register(request):
-    # Khởi tạo form đăng ký người dùng trống
-    form = CreateUserForm() 
-    
-    # Nếu người dùng gửi dữ liệu lên (nhấn nút Đăng ký)
-    if request.method == "POST":
-        # Điền dữ liệu POST vào form
-        form = CreateUserForm(request.POST)
-        user_not_login = "hidden" # Ẩn nút đăng nhập/đăng ký
-        user_login = "show"       # Hiện thông tin người dùng
-        
-        # Kiểm tra tính hợp lệ của dữ liệu form
-        if form.is_valid():
-            form.save()           # Lưu tài khoản mới vào database
-            return redirect('login') # Chuyển hướng đến trang đăng nhập
-            
-    # Mặc định trạng thái hiển thị cho khách (chưa đăng nhập)
-    user_not_login = "show"
-    user_login = "hidden"
-    
-    # Kiểm tra giỏ hàng để hiển thị trên thanh điều hướng (header)
     if request.user.is_authenticated:
-        customer = request.user
-        order, created = Order.objects.get_or_create(customer=customer, complete=False)
+        return redirect('home')
+
+    form = CreateUserForm()
+
+    if request.method == 'POST':
+        form = CreateUserForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Tạo tài khoản thành công! Hãy đăng nhập.')
+            return redirect('login')
+
+    if request.user.is_authenticated:
+        order, _ = Order.objects.get_or_create(customer=request.user, complete=False)
         items = order.orderitem_set.all()
         cartItems = order.get_cart_items
-        user_not_login = "hidden"
-        user_login = "show"
+        user_not_login = 'hidden'
+        user_login = 'show'
     else:
         items = []
         order = {'get_cart_total': 0, 'get_cart_items': 0}
         cartItems = 0
-        
-    # Chuẩn bị dữ liệu gửi ra giao diện
+        user_not_login = 'show'
+        user_login = 'hidden'
+
     context = {
         'form': form,
-        'user_not_login': user_not_login,
-        'user_login': user_login,
         'items': items,
         'order': order,
         'cartItems': cartItems,
+        'user_not_login': user_not_login,
+        'user_login': user_login,
     }
     return render(request, 'app/register.html', context)
 
-
 def loginPage(request):
-    # Nếu đã đăng nhập thì tự động chuyển về trang chủ
     if request.user.is_authenticated:
         return redirect('home')
-    
-    # Xử lý khi người dùng gửi form đăng nhập
-    if request.method == "POST":
-        username = request.POST.get('username') # Lấy tên đăng nhập
-        password = request.POST.get('password') # Lấy mật khẩu
-        # Dùng hàm authenticate của Django để kiểm tra thông tin
+
+    if request.method == 'POST':
+        username = request.POST.get('username', '').strip()
+        password = request.POST.get('password', '')
         user = authenticate(request, username=username, password=password)
-        
-        user_not_login = "hidden"
-        user_login = "show"
-        
+
         if user is not None:
-            login(request, user)  # Tạo session đăng nhập cho user
-            return redirect('home') # Chuyển hướng về trang chủ
+            login(request, user)
+            next_url = request.POST.get('next') or request.GET.get('next') or 'home'
+            return redirect(next_url)
         else:
-            # Báo lỗi nếu sai tài khoản/mật khẩu
-            messages.info(request, 'user or password not correct!')
-            
-    # Lấy thông tin giỏ hàng để hiển thị trên giao diện
+            messages.error(request, 'Tên đăng nhập hoặc mật khẩu không đúng!')
+
     if request.user.is_authenticated:
-        customer = request.user
-        order, created = Order.objects.get_or_create(customer=customer, complete=False)
+        order, _ = Order.objects.get_or_create(customer=request.user, complete=False)
         items = order.orderitem_set.all()
         cartItems = order.get_cart_items
-        user_not_login = "hidden"
-        user_login = "show"
+        user_not_login = 'hidden'
+        user_login = 'show'
     else:
         items = []
         order = {'get_cart_total': 0, 'get_cart_items': 0}
         cartItems = 0
-        
-    # Setup trạng thái hiển thị cho khách
-    user_not_login = "show"
-    user_login = "hidden"
-    
-    context = { 
+        user_not_login = 'show'
+        user_login = 'hidden'
+
+    context = {
         'items': items,
         'order': order,
         'cartItems': cartItems,
         'user_not_login': user_not_login,
-        'user_login': user_login
+        'user_login': user_login,
     }
     return render(request, 'app/login.html', context)
 
@@ -262,43 +243,42 @@ def detail(request):
 
 
 def search(request):
-    searched = ''  # Đảm bảo biến luôn tồn tại
-    keys = []      # Danh sách kết quả tìm kiếm rỗng mặc định
+    # Hỗ trợ cả GET (?searched=...) và POST
+    searched = request.GET.get('searched') or request.POST.get('searched', '')
+    searched = searched.strip()
 
-    # Xử lý khi có form tìm kiếm gửi lên
-    if request.method == "POST":
-        searched = request.POST["searched"]  # Lấy từ khóa từ thẻ input form
-        # Lọc sản phẩm có tên chứa từ khóa (không phân biệt hoa/thường - icontains)
-        keys = Product.objects.filter(name__icontains=searched) 
+    # Chỉ query DB khi có từ khóa
+    if searched:
+        keys = Product.objects.filter(name__icontains=searched)
+    else:
+        keys = Product.objects.none()
 
-    # Lấy giỏ hàng cho Header
     if request.user.is_authenticated:
-        customer = request.user
-        order, created = Order.objects.get_or_create(customer=customer, complete=False)
+        order, _ = Order.objects.get_or_create(customer=request.user, complete=False)
         items = order.orderitem_set.all()
-        cartItems = order.get_cart_items 
-        user_not_login = "hidden"
-        user_login = "show"
+        cartItems = order.get_cart_items
+        user_not_login = 'hidden'
+        user_login = 'show'
     else:
         items = []
-        order = {'get_cart_total': 0, 'get_cart_items': 0} 
-        cartItems = 0 
-        user_not_login = "show"
-        user_login = "hidden"
+        order = {'get_cart_total': 0, 'get_cart_items': 0}
+        cartItems = 0
+        user_not_login = 'show'
+        user_login = 'hidden'
 
     categories = Category.objects.filter(is_sub=False)
-    products = Product.objects.all()  # Lấy tất cả làm nền hoặc đề xuất thêm
-    
-    return render(request, 'app/search.html', {
-        "searched": searched,
-        "keys": keys,
+
+    context = {
+        'searched': searched,
+        'keys': keys,
         'categories': categories,
-        'products': products,
+        'items': items,
+        'order': order,
         'cartItems': cartItems,
         'user_not_login': user_not_login,
-        'user_login': user_login
-    })
-
+        'user_login': user_login,
+    }
+    return render(request, 'app/search.html', context)
 
 def search_suggestions(request):
     # Xử lý AJAX gợi ý tìm kiếm
